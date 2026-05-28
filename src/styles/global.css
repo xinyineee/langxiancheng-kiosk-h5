@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base reset & brand defaults */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    color: #1A1A1A;
+    background-color: #FFF8F0;
+    line-height: 1.6;
+  }
+}
+
+@layer components {
+  /* Brand button style */
+  .btn-brand {
+    @apply inline-flex items-center justify-center
+           bg-brand-orange text-white font-medium
+           rounded-brand-btn h-12 px-8
+           transition-all duration-200 ease-in-out
+           active:scale-95;
+  }
+
+  .btn-brand:hover {
+    @apply bg-brand-orange-dark;
+  }
+
+  /* Brand card style */
+  .card-brand {
+    @apply bg-brand-surface rounded-brand shadow-sm
+           p-5 transition-shadow duration-200;
+  }
+
+  .card-brand:hover {
+    @apply shadow-md;
+  }
+}

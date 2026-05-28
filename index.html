@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#FF6B1A" />
+  <meta name="description" content="浪险橙咖啡 — 我们一起浪，一起险，一起成" />
+
+  <!-- Open Graph Meta -->
+  <meta property="og:title" content="浪险橙咖啡 · 你的创业口味测试" />
+  <meta property="og:description" content="测测你是哪杯特调？浪险橙为你定制专属咖啡！" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://cafe.langxiancheng.com" />
+  <meta property="og:image" content="https://cafe.langxiancheng.com/og-image.png" />
+
+  <title>浪险橙咖啡 · 你的创业口味测试</title>
+
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+  <!-- GitHub Pages SPA routing: handle redirect from 404.html -->
+  <script>
+    (function() {
+      var redirect = sessionStorage.redirect;
+      delete sessionStorage.redirect;
+      if (redirect && redirect != window.location.href) {
+        history.replaceState(null, null, redirect);
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
