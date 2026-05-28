@@ -20,7 +20,7 @@
     // GitHub Pages SPA hack: redirect 404 to index.html with query
     // This script runs when GitHub serves 404.html for direct URL access
     // It converts the path into a query parameter and redirects to index.html
-    var pathSegmentsToKeep = 0; // root domain, no repo subpath
+    var pathSegmentsToKeep = 1; // repo subpath: /langxiancheng-kiosk-h5/
     var l = window.location;
     l.replace(
       l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
