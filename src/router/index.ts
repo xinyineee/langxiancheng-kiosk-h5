@@ -1,16 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import WelcomeView from '../views/WelcomeView.vue'
+import QuizView from '../views/QuizView.vue'
 import ResultView from '../views/ResultView.vue'
 
 /**
- * Router configuration for the H5 landing page.
- * Only the /result route is needed — the Kiosk app navigates here via NFC URL.
+ * 路由配置
+ * / → 欢迎页
+ * /quiz → 测试页
+ * /result → 结果页（支持 URL query 参数和测试流程跳转）
  */
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      redirect: '/result'
+      name: 'welcome',
+      component: WelcomeView
+    },
+    {
+      path: '/quiz',
+      name: 'quiz',
+      component: QuizView
     },
     {
       path: '/result',
