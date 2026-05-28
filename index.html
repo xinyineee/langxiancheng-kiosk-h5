@@ -565,6 +565,34 @@
     height: 100%;
     object-fit: cover;
     border-radius: 30px;
+    transition: opacity 0.5s ease;
+  }
+  .drink-image-card.img-loading img {
+    opacity: 0;
+  }
+  .drink-image-card.img-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 2;
+  }
+  @keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+  .drink-image-card.img-error::after {
+    content: '☕';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 60px;
+    z-index: 2;
+    opacity: 0.5;
   }
 
   .drink-name {
@@ -821,8 +849,8 @@
       <div class="result-title">你的前行饮品</div>
       <p class="result-subtitle">—— 浪险橙咖啡</p>
     </div>
-    <div class="drink-image-card">
-      <img id="resultImg" src="" alt="饮品">
+    <div class="drink-image-card" id="drinkImageCard">
+      <img id="resultImg" src="" alt="饮品" onerror="this.style.display='none'; document.getElementById('drinkImageCard').classList.add('img-error');">
     </div>
     <div class="drink-name" id="resultName"></div>
     <p class="drink-tagline" id="resultTagline"></p>
@@ -842,32 +870,32 @@
 const drinks = [
   {
     id: 'D1', name: '启程·梨想云', tagline: '梦想远大，只管出发',
-    heartCopy: '你的心里装着一片星辰大海。无论路多远，只要开始，就已经赢了一半。愿这杯梨想云，陪你走过每一段从零到一的路、',
+    heartCopy: '你的心里装着一片星辰大海。无论路多远，只要开始，就已经赢了一半。愿这杯梨想云，陪你走过每一段从零到一的路。',
     img: 'images/drink1.jpg'
   },
   {
     id: 'D2', name: '探路·莓抹思慕雪', tagline: '探索不止，创造无限',
-    heartCopy: '你天生就是探路者。别人看到的是问题，你看到的是可能性。这杯莓抹思慕雪，致敬你永不满足的好奇心、',
+    heartCopy: '你天生就是探路者。别人看到的是问题，你看到的是可能性。这杯莓抹思慕雪，致敬你永不满足的好奇心。',
     img: 'images/drink2.jpg'
   },
   {
     id: 'D3', name: '拼了·开心拿铁', tagline: '全力以赴，快乐前行',
-    heartCopy: '你相信拼尽全力才能不留遗憾。你的努力蕴着光的种子，总有一天会绵放。这杯开心拿铁，敬你的勇气与坚持、',
+    heartCopy: '你相信拼尽全力才能不留遗憾。你的努力藏着光的种子，总有一天会绽放。这杯开心拿铁，敬你的勇气与坚持。',
     img: 'images/drink3.jpg'
   },
   {
     id: 'D4', name: '商米橙·破昱', tagline: '破昱而出，引领前行',
-    heartCopy: '你就是那个在黎明前第一个出发的人。别人还在犹豫，你已经开始奔跑。这杯商米橙破昱，为你而闪耀&#122、',
+    heartCopy: '你就是那个在黎明前第一个出发的人。别人还在犹豫，你已经开始奔跑。这杯商米橙破昱，为你而闪耀。',
     img: 'images/drink4.jpg'
   },
   {
     id: 'D5', name: '桂在路上·冷萃', tagline: '坚定前行，厚积薄发',
-    heartCopy: '你相信每一步都算数。看似平淡的坚持，其实都在摎累能量。这杯桂在路上冷萃，为你的执着干杯&#122、',
+    heartCopy: '你相信每一步都算数。看似平淡的坚持，其实都在积累能量。这杯桂在路上冷萃，为你的执着干杯。',
     img: 'images/drink5.jpg'
   },
   {
     id: 'D6', name: '上岸·奶砖拿铁', tagline: '终将抵达，值得等待',
-    heartCopy: '你走过的每一步弯路，都在为最后的冲刺做准备。上岸不是终点，而是新的起点。这杯上岸奶砖拿铁，敬你的每一步&#122、',
+    heartCopy: '你走过的每一步弯路，都在为最后的冲刺做准备。上岸不是终点，而是新的起点。这杯上岸奶砖拿铁，敬你的每一步。',
     img: 'images/drink6.jpg'
   }
 ];
@@ -1210,14 +1238,33 @@ function finishTest() {
 
   setTimeout(() => {
     const drink = drinks[winnerIdx];
-    document.getElementById('resultImg').src = drink.img;
+    const imgEl = document.getElementById('resultImg');
+    const cardEl = document.getElementById('drinkImageCard');
+
     document.getElementById('resultName').textContent = drink.name;
     document.getElementById('resultTagline').textContent = drink.tagline;
     document.getElementById('resultHeartCopy').textContent = drink.heartCopy;
 
-    showScreen('screenResult');
+    // Preload image before showing result screen
+    imgEl.style.display = '';
+    cardEl.classList.remove('img-error');
+    cardEl.classList.add('img-loading');
 
-    speak('恭喜你！你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
+    const preloadImg = new Image();
+    preloadImg.onload = function() {
+      imgEl.src = drink.img;
+      cardEl.classList.remove('img-loading');
+      showScreen('screenResult');
+      speak('恭喜你！你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
+    };
+    preloadImg.onerror = function() {
+      imgEl.style.display = 'none';
+      cardEl.classList.remove('img-loading');
+      cardEl.classList.add('img-error');
+      showScreen('screenResult');
+      speak('恭喜你！你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
+    };
+    preloadImg.src = drink.img;
   }, 1800);
 }
 
