@@ -36,12 +36,6 @@ android {
     }
 }
 
-repositories {
-    flatDir {
-        dirs("libs")
-    }
-}
-
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
@@ -50,11 +44,11 @@ dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
 
     // SUNMI AI Base SDK
-    implementation(name: "sm_base_sdk", ext: "aar")
-    implementation(name: "sm_main_framework_aidl", ext: "aar")
-    implementation(name: "sm_main_framework_sdk", ext: "aar")
+    implementation(files("libs/sm_base_sdk.aar"))
+    implementation(files("libs/sm_main_framework_aidl.aar"))
+    implementation(files("libs/sm_main_framework_sdk.aar"))
 
     // SUNMI Voice SDK
-    implementation(name: "sm_asr_aidl", ext: "aar")
-    implementation(name: "sm_asr_sdk", ext: "aar")
+    implementation(files("libs/sm_asr_aidl.aar"))
+    implementation(files("libs/sm_asr_sdk.aar"))
 }
