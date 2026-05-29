@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>浪险橙 · 我的前行饮品</title>
+
+<!-- OG Meta Tags (default, updated by JS) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="浪险橙咖啡" />
+<meta property="og:title" content="我的创业口味 — 浪险橙咖啡" />
+<meta property="og:description" content="来测测你的创业口味，找到属于你的前行饮品" />
+<meta property="og:image" content="https://cafe.langxiancheng.com/images/logo.png" />
+<meta property="og:url" content="https://cafe.langxiancheng.com/result" />
+
+<!-- WeChat Share Meta -->
+<meta itemprop="name" content="我的创业口味 — 浪险橙咖啡" />
+<meta itemprop="description" content="来测测你的创业口味，找到属于你的前行饮品" />
+<meta itemprop="image" content="https://cafe.langxiancheng.com/images/logo.png" />
+
+<!-- html2canvas -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<style>
+/* ============================================
+   浪险橙 Result Page — Mobile H5
+   Warmth · Share · Social
+   ============================================ */
+
+:root {
+  --orange:        #FF6B35;
+  --orange-subtle: #FFF3EB;
+  --orange-mid:    #E85D2C;
+  --orange-glow:   rgba(255,107,53,0.15);
+
+  --bg:            #FAFAF8;
+  --surface:       #FFFFFF;
+  --surface-muted: #F5F3F0;
+  --border:        #D8D3CC;
+
+  --text-primary:   #1A1A1A;
+  --text-secondary: #757575;
+  --text-tertiary:  #A5A09C;
+
+  --warm-clay:     #D4A88C;
+  --warm-sand:     #E8DDD4;
+
+  --font: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+
+  --r-sm: 8px; --r-md: 16px; --r-lg: 24px; --r-full: 9999px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:  cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  font-family: var(--font);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* --- Background Decorations --- */
+.page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.page-bg .glow-1 {
+  position: absolute;
+  width: 300px; height: 300px;
+  top: -80px; right: -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,107,53,0.12) 0%, rgba(255,107,53,0.03) 50%, transparent 72%);
+  animation: glowFloat 6s ease-in-out infinite;
+}
+
+.page-bg .glow-2 {
+  position: absolute;
+  width: 200px; height: 200px;
+  bottom: 10%; left: -40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212,168,140,0.15) 0%, transparent 70%);
+  animation: glowFloat 8s ease-in-out 1s infinite;
+}
+
+.page-bg .dot-1 {
+  position: absolute;
+  width: 8px; height: 8px;
+  top: 18%; left: 12%;
+  background: var(--orange);
+  border-radius: 50%;
+  opacity: 0.18;
+  animation: dotDrift 5s ease-in-out infinite;
+}
+
+.page-bg .dot-2 {
+  position: absolute;
+  width: 6px; height: 6px;
+  top: 35%; right: 8%;
+  background: var(--warm-clay);
+  border-radius: 50%;
+  opacity: 0.22;
+  animation: dotDrift 7s ease-in-out 0.5s infinite;
+}
+
+.page-bg .dot-3 {
+  position: absolute;
+  width: 10px; height: 10px;
+  bottom: 22%; right: 15%;
+  background: var(--orange);
+  border-radius: 50%;
+  opacity: 0.12;
+  animation: dotDrift 6s ease-in-out 1.5s infinite;
+}
+
+.page-bg .dot-4 {
+  position: absolute;
+  width: 5px; height: 5px;
+  bottom: 40%; left: 6%;
+  background: var(--warm-sand);
+  border-radius: 50%;
+  opacity: 0.25;
+  animation: dotDrift 9s ease-in-out 2s infinite;
+}
+
+@keyframes glowFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+  50% { transform: translate(8px, -12px) scale(1.08); opacity: 1; }
+}
+
+@keyframes dotDrift {
+  0%, 100% { transform: translateY(0); opacity: 0.15; }
+  50% { transform: translateY(-8px); opacity: 0.3; }
+}
+
+/* --- Main Container --- */
+.result-page {
+  position: relative;
+  z-index: 1;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 0 24px;
+  padding-top: env(safe-area-inset-top, 20px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 32px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* --- Top Brand --- */
+.brand-header {
+  text-align: center;
+  padding: 32px 0 20px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUpIn 0.6s var(--ease-out) 0.1s forwards;
+}
+
+.brand-logo {
+  width: 52px; height: 52px;
+  margin: 0 auto 8px;
+}
+
+.brand-logo svg {
+  width: 100%; height: 100%;
+}
+
+.brand-name {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.15em;
+  margin-bottom: 2px;
+}
+
+.brand-name span {
+  color: var(--orange);
+}
+
+.brand-slogan {
+  font-size: 0.78rem;
+  font-weight: 300;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+/* --- Card --- */
+.drink-card {
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+  overflow: hidden;
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: translateY(28px) scale(0.96);
+  animation: cardIn 0.7s var(--ease-out) 0.3s forwards;
+}
+
+.drink-card-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.drink-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.drink-card-image::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(to top, rgba(255,255,255,0.9), transparent);
+  pointer-events: none;
+}
+
+.drink-card-image .badge {
+  position: absolute;
+  top: 16px; left: 16px;
+  padding: 4px 14px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--r-full);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--orange);
+  letter-spacing: 0.06em;
+  z-index: 2;
+}
+
+.drink-card-body {
+  padding: 20px 24px 28px;
+}
+
+.drink-name {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  margin-bottom: 8px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeUpIn 0.5s var(--ease-out) 0.7s forwards;
+}
+
+.drink-tagline {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--orange);
+  letter-spacing: 0.03em;
+  margin-bottom: 16px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeUpIn 0.5s var(--ease-out) 0.85s forwards;
+}
+
+.drink-divider {
+  width: 32px;
+  height: 2px;
+  background: var(--orange);
+  border-radius: 1px;
+  margin-bottom: 16px;
+  opacity: 0;
+  transform: scaleX(0);
+  animation: dividerIn 0.5s var(--ease-out) 1s forwards;
+}
+
+.drink-heartcopy {
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeUpIn 0.5s var(--ease-out) 1.1s forwards;
+}
+
+/* --- Share Section --- */
+.share-section {
+  width: 100%;
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeUpIn 0.5s var(--ease-out) 1.3s forwards;
+}
+
+.share-label {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  text-align: center;
+  letter-spacing: 0.06em;
+  margin-bottom: 14px;
+}
+
+.share-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.share-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 90px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.share-btn:active {
+  transform: scale(0.95);
+  background: var(--surface-muted);
+}
+
+.share-btn-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-btn-icon svg {
+  width: 20px; height: 20px;
+}
+
+.share-btn.wechat .share-btn-icon {
+  background: #07C160;
+}
+
+.share-btn.weibo .share-btn-icon {
+  background: #E6162D;
+}
+
+.share-btn.save .share-btn-icon {
+  background: var(--text-primary);
+}
+
+.share-btn-text {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* --- Bottom Brand --- */
+.brand-footer {
+  text-align: center;
+  padding: 16px 0 8px;
+  opacity: 0;
+  animation: fadeUpIn 0.5s var(--ease-out) 1.5s forwards;
+}
+
+.brand-footer-text {
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+
+.brand-footer-text a {
+  color: var(--orange);
+  text-decoration: none;
+}
+
+/* --- Fallback / Guide Page --- */
+.guide-page {
+  text-align: center;
+  padding: 60px 24px 40px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-icon {
+  width: 120px; height: 120px;
+  margin: 0 auto 24px;
+  position: relative;
+}
+
+.guide-icon .gi-circle {
+  position: absolute;
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.guide-icon .gi-cup {
+  position: absolute;
+  width: 50px; height: 44px;
+  border: 2.5px solid var(--warm-clay);
+  border-radius: 6px 6px 20px 20px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.7;
+}
+
+.guide-icon .gi-cup::after {
+  content: '';
+  position: absolute;
+  top: 8px; right: -14px;
+  width: 12px; height: 18px;
+  border: 2px solid var(--warm-clay);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  opacity: 0.7;
+}
+
+.guide-icon .gi-steam {
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  width: 40px; height: 24px;
+}
+
+.guide-icon .gi-steam-line {
+  position: absolute;
+  width: 2px; height: 12px;
+  background: var(--warm-clay);
+  border-radius: 1px;
+  opacity: 0;
+  animation: steamRise 2s ease-out infinite;
+}
+
+.guide-icon .gi-steam-line:nth-child(1) { left: 8px; animation-delay: 0s; }
+.guide-icon .gi-steam-line:nth-child(2) { left: 18px; animation-delay: 0.4s; }
+.guide-icon .gi-steam-line:nth-child(3) { left: 28px; animation-delay: 0.8s; }
+
+@keyframes steamRise {
+  0% { opacity: 0; transform: translateY(0) scaleY(0.5); }
+  30% { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-16px) scaleY(1.2); }
+}
+
+.guide-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.guide-subtitle {
+  font-size: 0.88rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 280px;
+  margin: 0 auto 32px;
+  letter-spacing: 0.02em;
+}
+
+.guide-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 40px;
+  background: var(--orange);
+  color: #FFF;
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-family: var(--font);
+  letter-spacing: 0.04em;
+  border: none;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  box-shadow: 0 4px 16px rgba(255,107,53,0.25);
+}
+
+.guide-cta:active {
+  transform: scale(0.97);
+  background: var(--orange-mid);
+}
+
+.guide-cta .arrow {
+  font-size: 0.85rem;
+  transition: transform 0.2s;
+}
+
+.guide-cta:active .arrow {
+  transform: translateX(3px);
+}
+
+/* --- Toast --- */
+.result-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 28px;
+  background: var(--text-primary);
+  color: #FFF;
+  border-radius: var(--r-full);
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  z-index: 999;
+  white-space: nowrap;
+  font-family: var(--font);
+  animation: toastIn 0.3s var(--ease-out), toastOut 0.3s var(--ease-in) 2s forwards;
+  pointer-events: none;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+}
+
+/* --- Animations --- */
+@keyframes fadeUpIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(28px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dividerIn {
+  from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* --- Save canvas offscreen --- */
+.save-canvas-wrap {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  z-index: -1;
+}
+
+/* --- Responsive --- */
+@media (max-width: 375px) {
+  .drink-name { font-size: 1.4rem; }
+  .share-btn { min-width: 80px; padding: 12px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Background Decorations -->
+<div class="page-bg" id="pageBg">
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+  <div class="dot-1"></div>
+  <div class="dot-2"></div>
+  <div class="dot-3"></div>
+  <div class="dot-4"></div>
+</div>
+
+<!-- Result Page (shown when valid d param) -->
+<div class="result-page" id="resultPage" style="display:none;">
+  <!-- Brand Header -->
+  <div class="brand-header">
+    <div class="brand-logo">
+      <svg viewBox="0 0 1440 1440" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M862.318 763.961C931.96 763.961 988.468 820.197 988.908 889.735L988.911 890.554C988.911 960.469 932.233 1017.15 862.318 1017.15C792.403 1017.15 735.726 960.469 735.726 890.554C735.726 820.912 791.961 764.404 861.499 763.964L862.318 763.961ZM862.318 822.616C824.797 822.616 794.38 853.033 794.38 890.554C794.38 928.075 824.797 958.492 862.318 958.492C899.839 958.492 930.256 928.075 930.256 890.554C930.256 853.033 899.839 822.616 862.318 822.616Z" fill="#FF6000"/>
+        <path d="M577.454 842.599C649.674 842.599 708.284 901.082 708.284 973.301C708.284 989.498 695.154 1002.63 678.957 1002.63C662.76 1002.63 649.63 989.498 649.63 973.301C649.63 933.545 617.35 901.253 577.454 901.253C555.722 901.253 536.267 910.804 522.996 926.017C511.939 938.691 505.279 955.186 505.279 973.301C505.279 989.498 492.149 1002.63 475.952 1002.63C459.755 1002.63 446.625 989.498 446.625 973.301C446.625 940.467 458.782 910.401 478.796 887.458C502.742 860.01 538.084 842.599 577.454 842.599Z" fill="#FF6000"/>
+        <path d="M705.364 718.199C801.203 662.29 881.828 661.281 939.633 676.219C968.12 683.58 990.407 694.635 1005.73 703.981C1013.4 708.66 1019.37 712.94 1023.55 716.168C1025.64 717.783 1027.3 719.14 1028.49 720.158C1029.09 720.667 1029.58 721.092 1029.95 721.423C1030.14 721.589 1030.3 721.731 1030.43 721.848C1030.49 721.907 1030.55 721.96 1030.6 722.006L1030.63 722.033L1030.67 722.07L1030.69 722.088L1030.7 722.099L1030.73 722.125C1042.62 733.124 1043.34 751.679 1032.34 763.568C1021.39 775.412 1002.93 776.174 991.035 765.306L991.019 765.292C990.955 765.235 990.789 765.089 990.521 764.861C989.985 764.406 989.045 763.628 987.714 762.601C985.049 760.544 980.839 757.506 975.18 754.053C963.839 747.135 946.866 738.669 924.957 733.007C881.97 721.899 817.259 720.829 734.919 768.863C639.08 824.772 558.455 825.782 500.65 810.844C472.163 803.482 449.876 792.427 434.556 783.081C426.886 778.402 420.915 774.122 416.732 770.894C414.639 769.279 412.988 767.922 411.789 766.904C411.19 766.395 410.703 765.969 410.33 765.639C410.143 765.473 409.985 765.331 409.856 765.214C409.791 765.155 409.733 765.103 409.683 765.056C409.664 765.039 409.646 765.022 409.629 765.007L409.613 764.992L409.582 764.963L409.553 764.937C397.664 753.938 396.942 735.383 407.941 723.493C418.932 711.612 437.467 710.883 449.358 721.857L449.358 721.857L449.335 721.835L449.295 721.799C449.273 721.778 449.256 721.763 449.246 721.754C449.251 721.758 449.257 721.763 449.264 721.77C449.328 721.826 449.494 721.973 449.762 722.2C450.298 722.656 451.238 723.433 452.569 724.46C455.234 726.517 459.444 729.557 465.103 733.009C476.444 739.928 493.417 748.393 515.325 754.055C558.312 765.164 623.024 766.234 705.364 718.199Z" fill="#FF6000"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M571.581 468.247C641.223 468.247 697.731 524.483 698.171 594.021L698.174 594.84C698.173 664.755 641.496 721.432 571.581 721.432C501.666 721.432 444.989 664.755 444.988 594.84C444.988 525.198 501.224 468.69 570.762 468.25L571.581 468.247ZM571.581 526.902C534.06 526.902 503.643 557.319 503.643 594.84C503.643 632.361 534.06 662.778 571.581 662.778C609.102 662.778 639.519 632.361 639.519 594.84C639.519 557.319 609.102 526.902 571.581 526.902Z" fill="#FF6000"/>
+        <path d="M963.821 486.012C980.017 486.012 993.148 499.143 993.148 515.339C993.147 587.559 934.538 646.042 862.318 646.042C790.098 646.042 731.489 587.559 731.489 515.339C731.489 499.142 744.619 486.012 760.816 486.012C777.013 486.012 790.143 499.142 790.143 515.339C790.143 555.096 822.423 587.387 862.318 587.388C902.214 587.388 934.493 555.096 934.494 515.339C934.494 499.142 947.624 486.012 963.821 486.012Z" fill="#FF6000"/>
+        <path d="M654.824 422.555C677.299 419.059 691.705 430.631 696.973 435.914C697.631 436.574 697.961 436.905 698.252 437.582C698.456 438.055 698.598 438.971 698.548 439.484C698.476 440.218 698.263 440.633 697.836 441.462C694.422 448.096 684.213 463.497 661.738 466.994C639.258 470.491 624.854 458.918 619.588 453.634C618.93 452.974 618.601 452.644 618.309 451.966C618.106 451.493 617.964 450.578 618.014 450.065C618.086 449.331 618.299 448.917 618.725 448.088C622.139 441.454 632.348 426.052 654.824 422.555Z" fill="#FF6000"/>
+      </svg>
+    </div>
+    <div class="brand-name">浪<span>险</span>橙</div>
+    <div class="brand-slogan">我们一起浪，一起险，一起成</div>
+  </div>
+
+  <!-- Drink Card -->
+  <div class="drink-card" id="drinkCard">
+    <div class="drink-card-image">
+      <span class="badge">你的专属风味</span>
+      <img id="drinkImg" src="" alt="" onerror="this.style.display='none'">
+    </div>
+    <div class="drink-card-body">
+      <h2 class="drink-name" id="drinkName"></h2>
+      <p class="drink-tagline" id="drinkTagline"></p>
+      <div class="drink-divider"></div>
+      <p class="drink-heartcopy" id="drinkHeartCopy"></p>
+    </div>
+  </div>
+
+  <!-- Share Section -->
+  <div class="share-section">
+    <p class="share-label">分享你的前行饮品</p>
+    <div class="share-buttons">
+      <!-- WeChat -->
+      <button class="share-btn wechat" onclick="shareWeChat()">
+        <div class="share-btn-icon">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M9.5 4C5.36 4 2 6.69 2 10C2 11.89 3.08 13.56 4.78 14.66L4 17L6.81 15.5C7.64 15.82 8.55 16 9.5 16C9.67 16 9.83 16 10 15.99C9.69 15.39 9.5 14.72 9.5 14C9.5 10.69 12.47 8 16.15 8C16.38 8 16.61 8.01 16.84 8.04C16.04 5.69 13.04 4 9.5 4ZM7 9C6.45 9 6 8.55 6 8C6 7.45 6.45 7 7 7C7.55 7 8 7.45 8 8C8 8.55 7.55 9 7 9ZM12 9C11.45 9 11 8.55 11 8C11 7.45 11.45 7 12 7C12.55 7 13 7.45 13 8C13 8.55 12.55 9 12 9Z" fill="white"/>
+            <path d="M22 14C22 11.24 19.31 9 16 9C12.69 9 10 11.24 10 14C10 16.76 12.69 19 16 19C16.67 19 17.31 18.92 17.91 18.75L20 20L19.38 17.91C20.95 17.08 22 15.66 22 14ZM14 13C13.45 13 13 12.55 13 12C13 11.45 13.45 11 14 11C14.55 11 15 11.45 15 12C15 12.55 14.55 13 14 13ZM18 13C17.45 13 17 12.55 17 12C17 11.45 17.45 11 18 11C18.55 11 11 11.45 19 12C19 12.55 18.55 13 18 13Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="share-btn-text">微信</span>
+      </button>
+      <!-- Weibo -->
+      <button class="share-btn weibo" onclick="shareWeibo()">
+        <div class="share-btn-icon">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M10.47 18.43C6.63 18.43 3.53 16.17 3.53 13.36C3.53 10.55 6.63 8.29 10.47 8.29C14.31 8.29 17.41 10.55 17.41 13.36C17.41 16.17 14.31 18.43 10.47 18.43ZM18.09 9.91C17.83 9.16 17.05 8.78 16.32 9.02C15.6 9.27 15.21 10.08 15.47 10.83C15.56 11.08 15.62 11.35 15.62 11.63C15.62 13.04 14.34 14.21 12.71 14.33C12.54 14.34 12.39 14.44 12.33 14.59C12.18 14.97 12.41 15.39 12.81 15.46C13.02 15.5 13.24 15.52 13.47 15.52C15.88 15.52 17.87 13.81 18.13 11.65C18.18 11.22 18.16 10.79 18.09 9.91Z" fill="white"/>
+            <path d="M19.71 6.53C19.13 5.02 17.5 4.17 15.88 4.52C15.23 4.66 14.81 5.29 14.94 5.93C15.07 6.57 15.7 6.98 16.35 6.85C16.83 6.75 17.33 6.96 17.55 7.39C17.78 7.83 17.67 8.36 17.3 8.67C16.79 9.09 16.72 9.84 17.14 10.34C17.56 10.84 18.32 10.91 18.82 10.49C19.86 9.64 20.24 8.13 19.71 6.53Z" fill="white"/>
+          </svg>
+        </div>
+        <span class="share-btn-text">微博</span>
+      </button>
+      <!-- Save Image -->
+      <button class="share-btn save" onclick="saveImage()">
+        <div class="share-btn-icon">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 3V15M12 15L8 11M12 15L16 11" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 17V19C4 20.1 4.9 21 6 21H18C19.1 21 20 20.1 20 19V17" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="share-btn-text">保存图片</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="brand-footer">
+    <p class="brand-footer-text">
+      浪险橙 · 前行饮品<br>
+      <a href="https://cafe.langxiancheng.com">cafe.langxiancheng.com</a>
+    </p>
+  </div>
+</div>
+
+<!-- Guide Page (shown when no valid d param) -->
+<div class="guide-page" id="guidePage" style="display:none;">
+  <div class="page-bg">
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+    <div class="dot-1"></div>
+    <div class="dot-2"></div>
+  </div>
+  <div class="guide-icon">
+    <div class="gi-circle"></div>
+    <div class="gi-cup"></div>
+    <div class="gi-steam">
+      <div class="gi-steam-line"></div>
+      <div class="gi-steam-line"></div>
+      <div class="gi-steam-line"></div>
+    </div>
+  </div>
+  <h2 class="guide-title">来测测你的创业口味</h2>
+  <p class="guide-subtitle">5 道情景题，找到与你最契合的前行饮品，碰一碰手机即刻保存</p>
+  <button class="guide-cta" onclick="goToKiosk()">
+    去测试 <span class="arrow">→</span>
+  </button>
+</div>
+
+<!-- Hidden canvas for save image -->
+<div class="save-canvas-wrap" id="saveCanvasWrap"></div>
+
+<script>
+// ==================== DATA ====================
+const drinks = [
+  { id: 'D1', name: '启程·梨想云', tagline: '每天都是新的起跑线', heartCopy: '每一个起点，都藏着你最好的可能。今天，就是你的新起跑线。', img: 'images/drink1.jpg' },
+  { id: 'D2', name: '探路·莓抹思慕雪', tagline: '创业初期的复杂滋味，但值得', heartCopy: '路不是直的，味道也不是简单的。但复杂里，藏着最真实的你。', img: 'images/drink2.jpg' },
+  { id: 'D3', name: '拼了·开心拿铁', tagline: '拼这一次，不问结果', heartCopy: '不是每次拼搏都有结果，但每次拼搏都有意义。这一杯，献给此刻的你。', img: 'images/drink3.jpg' },
+  { id: 'D4', name: '商米橙·破晓', tagline: '从混沌到清晰，创业的第一缕光', heartCopy: '混乱之后，清晨终会来临。你已经走过最暗的那段路了。', img: 'images/drink4.jpg' },
+  { id: 'D5', name: '桂在路上·冷萃', tagline: '路还长，但已经闻到桂花香', heartCopy: '不用急，慢慢来。走得稳的人，最终都能闻到桂花香。', img: 'images/drink5.jpg' },
+  { id: 'D6', name: '上岸·奶砖拿铁', tagline: '熬过层层，开心上岸', heartCopy: '熬过来了。真的熬过来了。这一杯，是你给自己最好的礼物。', img: 'images/drink6.jpg' }
+];
+
+const BASE_URL = 'https://cafe.langxiancheng.com';
+
+// ==================== INIT ====================
+function init() {
+  const params = new URLSearchParams(window.location.search);
+  const drinkId = params.get('d');
+
+  if (!drinkId) {
+    showGuide();
+    return;
+  }
+
+  const drink = drinks.find(function(d) { return d.id === drinkId; });
+
+  if (!drink) {
+    showGuide();
+    return;
+  }
+
+  showResult(drink);
+}
+
+function showResult(drink) {
+  // Update page title
+  document.title = '我的创业口味是 ' + drink.name + ' — 浪险橙咖啡';
+
+  // Update OG meta tags
+  updateMeta('og:title', '我的创业口味是 ' + drink.name);
+  updateMeta('og:description', drink.heartCopy);
+  updateMeta('og:image', BASE_URL + '/' + drink.img);
+  updateMeta('og:url', BASE_URL + '/result?d=' + drink.id);
+  updateMeta('itemprop:name', '我的创业口味是 ' + drink.name);
+  updateMeta('itemprop:description', drink.heartCopy);
+  updateMeta('itemprop:image', BASE_URL + '/' + drink.img);
+
+  // Fill in drink data
+  document.getElementById('drinkImg').src = drink.img;
+  document.getElementById('drinkImg').alt = drink.name;
+  document.getElementById('drinkName').textContent = drink.name;
+  document.getElementById('drinkTagline').textContent = drink.tagline;
+  document.getElementById('drinkHeartCopy').textContent = drink.heartCopy;
+
+  // Store current drink for sharing
+  window._currentDrink = drink;
+
+  // Show result page
+  document.getElementById('resultPage').style.display = 'flex';
+  document.getElementById('guidePage').style.display = 'none';
+}
+
+function showGuide() {
+  document.getElementById('resultPage').style.display = 'none';
+  document.getElementById('guidePage').style.display = 'flex';
+}
+
+function updateMeta(property, content) {
+  var el = document.querySelector('meta[property="' + property + '"]') ||
+           document.querySelector('meta[itemprop="' + property + '"]');
+  if (el) {
+    el.setAttribute('content', content);
+  }
+}
+
+// ==================== SHARING ====================
+
+/** WeChat share — copy link to clipboard, show toast */
+function shareWeChat() {
+  var drink = window._currentDrink;
+  if (!drink) return;
+
+  var url = BASE_URL + '/result?d=' + drink.id;
+  var text = '我的创业口味是「' + drink.name + '」— ' + drink.heartCopy + ' ' + url;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('链接已复制，打开微信粘贴分享');
+    }).catch(function() {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('链接已复制，打开微信粘贴分享');
+  } catch(e) {
+    showToast('复制失败，请手动复制链接');
+  }
+  document.body.removeChild(ta);
+}
+
+/** Weibo share — open Weibo share URL */
+function shareWeibo() {
+  var drink = window._currentDrink;
+  if (!drink) return;
+
+  var url = BASE_URL + '/result?d=' + drink.id;
+  var title = '我的创业口味是「' + drink.name + '」';
+  var pic = BASE_URL + '/' + drink.img;
+
+  var weiboUrl = 'https://service.weibo.com/share/share.php?' +
+    'title=' + encodeURIComponent(title + ' — ' + drink.heartCopy) +
+    '&url=' + encodeURIComponent(url) +
+    '&pic=' + encodeURIComponent(pic);
+
+  window.open(weiboUrl, '_blank', 'width=600,height=500');
+}
+
+/** Save as image using html2canvas */
+function saveImage() {
+  var drink = window._currentDrink;
+  if (!drink) return;
+
+  showToast('正在生成图片…');
+
+  var card = document.getElementById('drinkCard');
+
+  html2canvas(card, {
+    useCORS: true,
+    allowTaint: false,
+    backgroundColor: '#FFFFFF',
+    scale: 2,
+    logging: false,
+    onclone: function(clonedDoc) {
+      // Ensure the cloned card is visible
+      var clonedCard = clonedDoc.getElementById('drinkCard');
+      if (clonedCard) {
+        clonedCard.style.opacity = '1';
+        clonedCard.style.transform = 'none';
+        clonedCard.style.animation = 'none';
+        // Make all children visible too
+        var children = clonedCard.querySelectorAll('.drink-name, .drink-tagline, .drink-heartcopy, .drink-divider');
+        children.forEach(function(el) {
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+          el.style.animation = 'none';
+        });
+      }
+    }
+  }).then(function(canvas) {
+    var link = document.createElement('a');
+    link.download = '浪险橙_' + drink.name + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('图片已保存');
+  }).catch(function(err) {
+    console.error('html2canvas error:', err);
+    showToast('图片生成失败，请截图保存');
+  });
+}
+
+/** Navigate to kiosk */
+function goToKiosk() {
+  window.location.href = BASE_URL;
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  var existing = document.querySelector('.result-toast');
+  if (existing) existing.remove();
+
+  var t = document.createElement('div');
+  t.className = 'result-toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { if (t.parentNode) t.remove(); }, 2500);
+}
+
+// ==================== START ====================
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

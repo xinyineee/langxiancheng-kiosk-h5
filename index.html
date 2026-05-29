@@ -829,6 +829,40 @@ html, body {
   color: var(--text-primary);
 }
 
+/* QR Code Area */
+.qr-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+  opacity: 0;
+  transform: translateY(8px);
+  animation: fadeUpIn 0.4s var(--ease-out) forwards;
+}
+
+.qr-area canvas {
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+
+.qr-hint {
+  font-size: 0.75rem;
+  font-weight: 300;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+}
+
+/* NFC Status */
+.nfc-status {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  padding: var(--s1) 0;
+  margin-bottom: var(--s2);
+}
+
 .result-actions {
   display: flex; flex-direction: column;
   gap: var(--s3);
@@ -1215,6 +1249,7 @@ const questions = [
 // ==================== STATE ====================
 let currentQ = 0;
 let scores = [0, 0, 0, 0, 0, 0];
+let currentDrink = null;
 
 
 // ==================== ASR (Auto-listen mode) ====================
@@ -1631,6 +1666,7 @@ function finishTest() {
 
   setTimeout(() => {
     const drink = drinks[winnerIdx];
+    currentDrink = drink;
     const content = document.getElementById('result-content');
 
     content.innerHTML = `
@@ -1642,15 +1678,20 @@ function finishTest() {
       <div class="result-divider"></div>
       <p class="result-message">${drink.heartCopy}</p>
       <div class="nfc-area" onclick="shareResult()">
-        <div class="nfc-ring">
+        <div class="nfc-ring" id="nfcRing">
           <svg class="nfc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="#8C8C8C" stroke-width="1.5" stroke-linecap="round">
             <path d="M12 2a8 8 0 0 1 8 8"/>
             <path d="M12 6a4 4 0 0 1 4 4"/>
             <circle cx="12" cy="14" r="2"/>
           </svg>
         </div>
-        <div class="nfc-text"><strong>触碰手机</strong><br>保存你的前行饮品</div>
+        <div class="nfc-text" id="nfcText"><strong>触碰手机</strong><br>保存你的前行饮品</div>
       </div>
+      <div class="qr-area" id="qrArea" style="display:none;">
+        <canvas id="qrCanvas" width="120" height="120"></canvas>
+        <p class="qr-hint">或扫码保存</p>
+      </div>
+      <div class="nfc-status" id="nfcStatus" style="display:none;"></div>
       <div class="result-actions">
         <button class="action-btn primary" onclick="shareResult()">保存分享</button>
         <button class="action-btn secondary" onclick="startQuiz()">重新测试</button>
@@ -1663,16 +1704,422 @@ function finishTest() {
   }, 2200);
 }
 
-// ==================== NFC ====================
+// ==================== NFC + QR ====================
+const nfcBridge = (typeof AndroidNFC !== 'undefined') ? AndroidNFC : null;
+
 function shareResult() {
-  const ring = document.querySelector('.nfc-ring');
-  if (ring) {
-    ring.style.borderColor = 'var(--orange)';
-    ring.style.transform = 'scale(1.1)';
-    setTimeout(() => { ring.style.borderColor = 'var(--border)'; ring.style.transform = 'scale(1)'; }, 400);
+  if (!currentDrink) return;
+
+  const ring = document.getElementById('nfcRing');
+  const text = document.getElementById('nfcText');
+  const status = document.getElementById('nfcStatus');
+
+  if (nfcBridge && nfcBridge.isNfcAvailable()) {
+    // NFC available — prepare write
+    nfcBridge.prepareWrite(currentDrink.id);
+    if (ring) { ring.style.borderColor = 'var(--orange)'; ring.style.transform = 'scale(1.1)'; }
+    if (text) text.innerHTML = '<strong>等待触碰…</strong><br>将手机靠近 NFC 感应区';
+    if (status) { status.style.display = 'block'; status.textContent = 'NFC 已就绪'; status.style.color = 'var(--orange)'; }
+  } else {
+    // No NFC — show QR code
+    showQRCode();
   }
-  showToast('请将手机靠近 NFC 感应区');
 }
+
+// NFC callbacks (called from Kotlin via runJs)
+window._nfcOnReady = function() {
+  const status = document.getElementById('nfcStatus');
+  if (status) { status.style.display = 'block'; status.textContent = 'NFC 已就绪，请将手机靠近…'; status.style.color = 'var(--orange)'; }
+};
+
+window._nfcOnWriteSuccess = function() {
+  const ring = document.getElementById('nfcRing');
+  const text = document.getElementById('nfcText');
+  const status = document.getElementById('nfcStatus');
+  if (ring) { ring.style.borderColor = '#07C160'; ring.style.transform = 'scale(1.15)'; }
+  if (text) text.innerHTML = '<strong style="color:#07C160">写入成功！</strong><br>手机已获取你的饮品卡片';
+  if (status) { status.textContent = '✓ NFC 分享成功'; status.style.color = '#07C160'; }
+  showToast('NFC 分享成功！');
+  setTimeout(() => {
+    if (ring) { ring.style.borderColor = 'var(--border)'; ring.style.transform = 'scale(1)'; }
+    if (text) text.innerHTML = '<strong>触碰手机</strong><br>保存你的前行饮品';
+    if (status) status.style.display = 'none';
+  }, 3000);
+};
+
+window._nfcOnWriteFailure = function(err) {
+  const ring = document.getElementById('nfcRing');
+  const text = document.getElementById('nfcText');
+  const status = document.getElementById('nfcStatus');
+  if (ring) { ring.style.borderColor = '#E6162D'; }
+  if (text) text.innerHTML = '<strong style="color:#E6162D">写入失败</strong><br>请尝试扫码保存';
+  if (status) { status.textContent = 'NFC 写入失败，请使用二维码'; status.style.color = '#E6162D'; }
+  // Show QR as fallback
+  showQRCode();
+  setTimeout(() => {
+    if (ring) { ring.style.borderColor = 'var(--border)'; ring.style.transform = 'scale(1)'; }
+    if (text) text.innerHTML = '<strong>触碰手机</strong><br>保存你的前行饮品';
+    if (status) status.style.display = 'none';
+  }, 4000);
+};
+
+// ==================== QR Code (inline generator) ====================
+function showQRCode() {
+  if (!currentDrink) return;
+  const qrArea = document.getElementById('qrArea');
+  const canvas = document.getElementById('qrCanvas');
+  if (!qrArea || !canvas) return;
+
+  const url = 'https://cafe.langxiancheng.com/result?d=' + currentDrink.id;
+  generateQR(canvas, url, 120);
+  qrArea.style.display = 'flex';
+}
+
+/**
+ * Minimal QR code generator (numeric-only URL → QR matrix → canvas).
+ * Uses a lightweight approach: encode as alphanumeric QR, version 2-6 depending on URL length.
+ * For reliability, we use a simple QR library pattern.
+ */
+function generateQR(canvas, text, size) {
+  // Use a tiny inline QR encoder
+  const ctx = canvas.getContext('2d');
+  const modules = qrEncode(text);
+  const modCount = modules.length;
+  const cellSize = Math.floor(size / modCount);
+  const offset = Math.floor((size - cellSize * modCount) / 2);
+
+  canvas.width = size;
+  canvas.height = size;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#1A1A1A';
+
+  for (let r = 0; r < modCount; r++) {
+    for (let c = 0; c < modCount; c++) {
+      if (modules[r][c]) {
+        ctx.fillRect(offset + c * cellSize, offset + r * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+}
+
+// ---- Inline QR Code Encoder (supports alphanumeric + byte mode) ----
+// Adapted from kazuhikoarase/qrcode-generator (MIT License)
+// Simplified for single-page use — supports up to ~100 chars
+var qrEncode = (function() {
+  // Error correction level M
+  var EC_LEVEL = 1; // M
+
+  // QR code capacity table (version → data capacity in byte mode, EC level M)
+  var CAPACITIES = [0,16,28,44,64,86,108,124,154,182,216];
+
+  function getVersion(dataLen) {
+    for (var v = 1; v <= 10; v++) {
+      if (dataLen <= CAPACITIES[v]) return v;
+    }
+    return 10;
+  }
+
+  // GF(256) arithmetic
+  var EXP = new Array(256), LOG = new Array(256);
+  (function() {
+    var x = 1;
+    for (var i = 0; i < 255; i++) {
+      EXP[i] = x; LOG[x] = i;
+      x <<= 1; if (x & 256) x ^= 0x11d;
+    }
+    EXP[255] = EXP[0];
+  })();
+
+  function gfMul(a, b) { return (a === 0 || b === 0) ? 0 : EXP[(LOG[a] + LOG[b]) % 255]; }
+
+  // Reed-Solomon generator polynomial
+  function rsGenPoly(n) {
+    var g = [1];
+    for (var i = 0; i < n; i++) {
+      var ng = new Array(g.length + 1).fill(0);
+      for (var j = 0; j < g.length; j++) {
+        ng[j] ^= g[j]; ng[j + 1] ^= gfMul(g[j], EXP[i]);
+      }
+      g = ng;
+    }
+    return g;
+  }
+
+  function rsEncode(data, nsym) {
+    var gen = rsGenPoly(nsym);
+    var out = data.concat(new Array(nsym).fill(0));
+    for (var i = 0; i < data.length; i++) {
+      var coef = out[i];
+      if (coef !== 0) {
+        for (var j = 0; j < gen.length; j++) {
+          out[i + j] ^= gfMul(gen[j], coef);
+        }
+      }
+    }
+    return out.slice(data.length);
+  }
+
+  // EC codewords per block (version 1-10, level M)
+  var EC_PER_BLOCK = [0,10,16,26,18,24,16,18,22,22,26];
+  // Number of blocks (version 1-10, level M)
+  var NUM_BLOCKS = [0,1,1,1,2,2,2,2,2,2,4];
+
+  return function(text) {
+    var bytes = [];
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      if (c < 0x80) bytes.push(c);
+      else { bytes.push(0xc0 | (c >> 6)); bytes.push(0x80 | (c & 0x3f)); }
+    }
+
+    var version = getVersion(bytes.length);
+    var size = version * 4 + 17;
+
+    // Create matrix (0=white, 1=black, -1=uninitialized)
+    var matrix = [];
+    for (var r = 0; r < size; r++) {
+      matrix[r] = new Array(size).fill(-1);
+    }
+
+    var reserved = [];
+    for (var r = 0; r < size; r++) {
+      reserved[r] = new Array(size).fill(false);
+    }
+
+    // Place finder patterns
+    function placeFinder(row, col) {
+      for (var r = -1; r <= 7; r++) {
+        for (var c = -1; c <= 7; c++) {
+          var rr = row + r, cc = col + c;
+          if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
+          var val = (r >= 0 && r <= 6 && (c === 0 || c === 6)) ||
+                    (c >= 0 && c <= 6 && (r === 0 || r === 6)) ||
+                    (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+          matrix[rr][cc] = val ? 1 : 0;
+          reserved[rr][cc] = true;
+        }
+      }
+    }
+
+    placeFinder(0, 0);
+    placeFinder(0, size - 7);
+    placeFinder(size - 7, 0);
+
+    // Timing patterns
+    for (var i = 8; i < size - 8; i++) {
+      if (!reserved[6][i]) { matrix[6][i] = (i % 2 === 0) ? 1 : 0; reserved[6][i] = true; }
+      if (!reserved[i][6]) { matrix[i][6] = (i % 2 === 0) ? 1 : 0; reserved[i][6] = true; }
+    }
+
+    // Alignment pattern (version >= 2)
+    if (version >= 2) {
+      var alignPos = [6, version * 4 + 10];
+      for (var ai = 0; ai < alignPos.length; ai++) {
+        for (var aj = 0; aj < alignPos.length; aj++) {
+          var ar = alignPos[ai], ac = alignPos[aj];
+          if (reserved[ar] && reserved[ar][ac]) continue;
+          for (var dr = -2; dr <= 2; dr++) {
+            for (var dc = -2; dc <= 2; dc++) {
+              var val = (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0));
+              matrix[ar + dr][ac + dc] = val ? 1 : 0;
+              reserved[ar + dr][ac + dc] = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Reserve format info areas
+    for (var i = 0; i < 15; i++) {
+      // Around top-left finder
+      if (i < 6) { reserved[8][i] = true; reserved[i][8] = true; }
+      else if (i < 8) { reserved[8][i + 1] = true; reserved[i + 1][8] = true; }
+      else { reserved[8][size - 15 + i] = true; reserved[size - 15 + i][8] = true; }
+      // Around other finders
+      if (i < 8) { reserved[size - 1 - i][8] = true; }
+      else { reserved[8][size - 8 + (i - 8)] = true; }
+    }
+
+    // Dark module
+    reserved[size - 8][8] = true;
+    matrix[size - 8][8] = 1;
+
+    // Encode data
+    var dataBits = [];
+    // Mode: byte (0100)
+    dataBits.push(0,1,0,0);
+    // Character count (8 bits for version 1-9)
+    for (var b = 7; b >= 0; b--) dataBits.push((bytes.length >> b) & 1);
+    // Data
+    for (var i = 0; i < bytes.length; i++) {
+      for (var b = 7; b >= 0; b--) dataBits.push((bytes[i] >> b) & 1);
+    }
+    // Terminator
+    var totalDataBits = CAPACITIES[version] * 8;
+    for (var i = 0; i < 4 && dataBits.length < totalDataBits; i++) dataBits.push(0);
+    // Pad to byte boundary
+    while (dataBits.length % 8 !== 0) dataBits.push(0);
+    // Pad bytes
+    var padBytes = [0xEC, 0x11];
+    var pi = 0;
+    while (dataBits.length < totalDataBits) {
+      for (var b = 7; b >= 0; b--) dataBits.push((padBytes[pi] >> b) & 1);
+      pi = (pi + 1) % 2;
+    }
+
+    // Convert bits to bytes
+    var dataBytes = [];
+    for (var i = 0; i < dataBits.length; i += 8) {
+      var byte = 0;
+      for (var b = 0; b < 8; b++) byte = (byte << 1) | (dataBits[i + b] || 0);
+      dataBytes.push(byte);
+    }
+
+    // Add error correction
+    var ecPerBlock = EC_PER_BLOCK[version];
+    var numBlocks = NUM_BLOCKS[version];
+    var shortBlockLen = Math.floor(dataBytes.length / numBlocks);
+    var longBlocks = dataBytes.length % numBlocks;
+
+    var dataBlocks = [], ecBlocks = [];
+    var offset = 0;
+    for (var b = 0; b < numBlocks; b++) {
+      var blockLen = shortBlockLen + (b >= numBlocks - longBlocks ? 1 : 0);
+      var block = dataBytes.slice(offset, offset + blockLen);
+      dataBlocks.push(block);
+      ecBlocks.push(rsEncode(block, ecPerBlock));
+      offset += blockLen;
+    }
+
+    // Interleave
+    var interleaved = [];
+    var maxDataLen = shortBlockLen + 1;
+    for (var i = 0; i < maxDataLen; i++) {
+      for (var b = 0; b < numBlocks; b++) {
+        if (i < dataBlocks[b].length) interleaved.push(dataBlocks[b][i]);
+      }
+    }
+    for (var i = 0; i < ecPerBlock; i++) {
+      for (var b = 0; b < numBlocks; b++) {
+        interleaved.push(ecBlocks[b][i]);
+      }
+    }
+
+    // Convert to bits
+    var allBits = [];
+    for (var i = 0; i < interleaved.length; i++) {
+      for (var b = 7; b >= 0; b--) allBits.push((interleaved[i] >> b) & 1);
+    }
+    // Remainder bits
+    var remainderBits = [0,0,7,7,7,7,7,0,0,0,0];
+    for (var i = 0; i < (remainderBits[version] || 0); i++) allBits.push(0);
+
+    // Place data bits
+    var bitIdx = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (var j = 0; j < 2; j++) {
+          var col = right - j;
+          var upward = ((right + 1) & 2) === 0;
+          var row = upward ? size - 1 - vert : vert;
+          if (reserved[row][col]) continue;
+          matrix[row][col] = bitIdx < allBits.length ? allBits[bitIdx] : 0;
+          bitIdx++;
+        }
+      }
+    }
+
+    // Apply mask (mask pattern 0: (r+c)%2==0)
+    // Try all 8 masks, pick best (simplified: just use mask 0)
+    var bestMask = 0, bestPenalty = Infinity;
+    for (var mask = 0; mask < 8; mask++) {
+      var testMatrix = matrix.map(function(row) { return row.slice(); });
+      for (var r = 0; r < size; r++) {
+        for (var c = 0; c < size; c++) {
+          if (reserved[r][c]) continue;
+          var invert = false;
+          switch (mask) {
+            case 0: invert = (r + c) % 2 === 0; break;
+            case 1: invert = r % 2 === 0; break;
+            case 2: invert = c % 3 === 0; break;
+            case 3: invert = (r + c) % 3 === 0; break;
+            case 4: invert = (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0; break;
+            case 5: invert = (r * c) % 2 + (r * c) % 3 === 0; break;
+            case 6: invert = ((r * c) % 2 + (r * c) % 3) % 2 === 0; break;
+            case 7: invert = ((r + c) % 2 + (r * c) % 3) % 2 === 0; break;
+          }
+          if (invert) testMatrix[r][c] ^= 1;
+        }
+      }
+
+      // Simple penalty: count runs of same color
+      var penalty = 0;
+      for (var r = 0; r < size; r++) {
+        var run = 1;
+        for (var c = 1; c < size; c++) {
+          if (testMatrix[r][c] === testMatrix[r][c - 1]) run++;
+          else { if (run >= 5) penalty += run - 2; run = 1; }
+        }
+        if (run >= 5) penalty += run - 2;
+      }
+      for (var c = 0; c < size; c++) {
+        var run = 1;
+        for (var r = 1; r < size; r++) {
+          if (testMatrix[r][c] === testMatrix[r - 1][c]) run++;
+          else { if (run >= 5) penalty += run - 2; run = 1; }
+        }
+        if (run >= 5) penalty += run - 2;
+      }
+
+      if (penalty < bestPenalty) { bestPenalty = penalty; bestMask = mask; }
+    }
+
+    // Apply best mask
+    for (var r = 0; r < size; r++) {
+      for (var c = 0; c < size; c++) {
+        if (reserved[r][c]) continue;
+        var invert = false;
+        switch (bestMask) {
+          case 0: invert = (r + c) % 2 === 0; break;
+          case 1: invert = r % 2 === 0; break;
+          case 2: invert = c % 3 === 0; break;
+          case 3: invert = (r + c) % 3 === 0; break;
+          case 4: invert = (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0; break;
+          case 5: invert = (r * c) % 2 + (r * c) % 3 === 0; break;
+          case 6: invert = ((r * c) % 2 + (r * c) % 3) % 2 === 0; break;
+          case 7: invert = ((r + c) % 2 + (r * c) % 3) % 2 === 0; break;
+        }
+        if (invert) matrix[r][c] ^= 1;
+      }
+    }
+
+    // Place format info
+    var formatBits = (EC_LEVEL << 3) | bestMask;
+    var formatRemainder = formatBits;
+    for (var i = 0; i < 10; i++) formatRemainder = (formatRemainder << 1) ^ ((formatRemainder >> 9) * 0x537);
+    formatBits = ((formatBits << 10) | formatRemainder) ^ 0x5412;
+
+    for (var i = 0; i < 15; i++) {
+      var bit = (formatBits >> i) & 1;
+      if (i < 6) { matrix[8][i] = bit; matrix[i][8] = bit; }
+      else if (i < 8) { matrix[8][i + 1] = bit; matrix[i + 1][8] = bit; }
+      else { matrix[8][size - 15 + i] = bit; matrix[size - 15 + i][8] = bit; }
+      if (i < 8) { matrix[size - 1 - i][8] = bit; }
+      else { matrix[8][size - 8 + (i - 8)] = bit; }
+    }
+
+    // Fill uninitialized cells with 0
+    for (var r = 0; r < size; r++) {
+      for (var c = 0; c < size; c++) {
+        if (matrix[r][c] === -1) matrix[r][c] = 0;
+      }
+    }
+
+    return matrix;
+  };
+})();
 
 // ==================== TOAST ====================
 function showToast(msg) {

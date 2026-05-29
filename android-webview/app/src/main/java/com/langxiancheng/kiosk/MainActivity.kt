@@ -23,6 +23,13 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.app.PendingIntent
+import android.content.IntentFilter
+import android.nfc.NdefMessage
+import android.nfc.NdefRecord
+import android.nfc.NfcAdapter
+import android.nfc.Tag
+import android.nfc.tech.Ndef
 import java.io.File
 
 // SUNMI AI Base SDK
@@ -41,8 +48,14 @@ import com.sm.ai.framework.asr.aidl.result.IContinuationRequestCallback
 import com.sm.ai.framework.asr.sdk.lifecycle.ISpeechSessionLifecycle
 
 /**
- * WebView shell for LangXianCheng Kiosk v2.5
+ * WebView shell for LangXianCheng Kiosk v2.6
  * ASR: SUNMI Voice SDK (WEB mode) + Android SpeechRecognizer (fallback)
+ * NFC: NDEF write for result sharing via short URL
+ *
+ * v2.6 changes:
+ * - Added NFC module: write NDEF URL to tag for result sharing
+ * - NfcBridge JSBridge exposed as "AndroidNFC"
+ * - NFC is optional (required=false), gracefully degrades on non-NFC devices
  *
  * v2.5 changes:
  * - Switched to WEB mode for better Chinese recognition accuracy
@@ -84,6 +97,12 @@ class MainActivity : AppCompatActivity() {
 
     /** Which ASR engine is active: "sunmi" | "android" | "none" */
     private var activeEngine = "none"
+
+    // ---- NFC state ----
+    private var nfcAdapter: NfcAdapter? = null
+    private var nfcWritePending = false
+    private var nfcPendingUrl: String? = null
+    private var nfcEnabled = false
 
     // ================================================================
     // Lifecycle
@@ -130,6 +149,7 @@ class MainActivity : AppCompatActivity() {
 
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(AsrBridge(), "AndroidASR")
+        webView.addJavascriptInterface(NfcBridge(), "AndroidNFC")
 
         // Dev mode: load from app's external files dir if index.html exists there
         val devDir = File(getExternalFilesDir(null), "kiosk")
@@ -159,6 +179,7 @@ class MainActivity : AppCompatActivity() {
 
         // Init SUNMI SDK
         initSunmiSDK()
+        initNfc()
     }
 
     override fun onRequestPermissionsResult(
@@ -178,6 +199,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
+        enableNfcForegroundDispatch()
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
@@ -193,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         webView.onPause()
         autoContinue = false
         stopAllAsr()
+        disableNfcForegroundDispatch()
     }
 
     override fun onDestroy() {
@@ -576,6 +599,100 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ================================================================
+    // NFC Module
+    // ================================================================
+
+    private fun initNfc() {
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        if (nfcAdapter == null) {
+            Log.w(TAG, "NFC not available on this device")
+            nfcEnabled = false
+            return
+        }
+        nfcEnabled = true
+        Log.i(TAG, "NFC available: ${nfcAdapter?.isEnabled}")
+    }
+
+    /** Enable NFC foreground dispatch so we receive tag discovery intents */
+    private fun enableNfcForegroundDispatch() {
+        if (!nfcEnabled || nfcAdapter == null) return
+        try {
+            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+            val ndefFilter = IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
+                try { addDataType("*/*") } catch (e: Exception) {}
+            }
+            val filters = arrayOf(ndefFilter)
+            val techList = arrayOf(arrayOf(Ndef::class.java.name))
+            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, filters, techList)
+            Log.d(TAG, "NFC foreground dispatch enabled")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to enable NFC foreground dispatch", e)
+        }
+    }
+
+    private fun disableNfcForegroundDispatch() {
+        if (!nfcEnabled || nfcAdapter == null) return
+        try {
+            nfcAdapter?.disableForegroundDispatch(this)
+            Log.d(TAG, "NFC foreground dispatch disabled")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to disable NFC foreground dispatch", e)
+        }
+    }
+
+    /** Write NDEF URL to an NFC tag */
+    private fun writeNdefToTag(url: String, tag: Tag): Boolean {
+        val ndef = Ndef.get(tag) ?: run {
+            Log.w(TAG, "Tag does not support NDEF")
+            return false
+        }
+        return try {
+            ndef.connect()
+            if (!ndef.isWritable) {
+                Log.w(TAG, "Tag is not writable")
+                return false
+            }
+            val uriRecord = NdefRecord.createUri(url)
+            val ndefMessage = NdefMessage(uriRecord)
+            if (ndef.maxSize < ndefMessage.byteArrayLength) {
+                Log.w(TAG, "Tag capacity too small")
+                return false
+            }
+            ndef.writeNdefMessage(ndefMessage)
+            Log.i(TAG, "NFC write successful: $url")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "NFC write error", e)
+            false
+        } finally {
+            try { ndef.close() } catch (_: Exception) {}
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle NFC tag discovery
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action ||
+            NfcAdapter.ACTION_TAG_DISCOVERED == intent.action) {
+            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+            if (tag != null && nfcWritePending && nfcPendingUrl != null) {
+                val url = nfcPendingUrl!!
+                val success = writeNdefToTag(url, tag)
+                nfcWritePending = false
+                nfcPendingUrl = null
+
+                // Notify HTML of write result
+                if (success) {
+                    runJs("window._nfcOnWriteSuccess()")
+                } else {
+                    runJs("window._nfcOnWriteFailure('write-failed')")
+                }
+            }
+        }
+    }
+
+    // ================================================================
     // JSBridge
     // ================================================================
 
@@ -639,6 +756,29 @@ class MainActivity : AppCompatActivity() {
                     switchToWebMode()
                 }
             }
+        }
+    }
+
+    inner class NfcBridge {
+        @JavascriptInterface
+        fun isNfcAvailable(): Boolean = nfcEnabled && nfcAdapter?.isEnabled == true
+
+        @JavascriptInterface
+        fun prepareWrite(drinkId: String) {
+            runOnUiThread {
+                val url = "https://cafe.langxiancheng.com/result?d=$drinkId"
+                nfcPendingUrl = url
+                nfcWritePending = true
+                Log.i(TAG, "NFC write prepared: $url")
+                runJs("window._nfcOnReady()")
+            }
+        }
+
+        @JavascriptInterface
+        fun cancelWrite() {
+            nfcWritePending = false
+            nfcPendingUrl = null
+            Log.d(TAG, "NFC write cancelled")
         }
     }
 
