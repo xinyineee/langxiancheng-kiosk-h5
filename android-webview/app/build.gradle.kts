@@ -1,6 +1,12 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
+
+android {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 
 android {
     namespace = "com.langxiancheng.kiosk"
