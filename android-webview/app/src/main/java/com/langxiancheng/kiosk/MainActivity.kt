@@ -235,7 +235,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun initSunmiSpeechSDK() {
         try {
-            val config = InitialConfig("", "", "")
+            val config = InitialConfig("", "", "").apply {
+                asrMode = SmAsrMode.LOCAL  // force LOCAL mode for kiosk
+            }
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
                     override fun onInitSuccess() {
@@ -274,8 +276,6 @@ class MainActivity : AppCompatActivity() {
         if (!sunmiSpeechReady) return
         try {
             sunmiAsrActive = true
-            // Force LOCAL mode to avoid network timeout on kiosk devices
-            SmSpeechSDK.getInstance().setAsrMode(SmAsrMode.LOCAL)
             // wakeUpCallback = null → skip wake-up, start ASR directly
             SmSpeechSDK.getInstance().startSemanticRecognizer(
                 15000L,  // 15s timeout
