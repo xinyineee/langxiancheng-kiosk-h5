@@ -766,7 +766,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun prepareWrite(drinkId: String) {
             runOnUiThread {
-                val url = "https://cafe.langxiancheng.com/result?d=$drinkId"
+                val url = "https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=$drinkId"
                 nfcPendingUrl = url
                 nfcWritePending = true
                 Log.i(TAG, "NFC write prepared: $url")
