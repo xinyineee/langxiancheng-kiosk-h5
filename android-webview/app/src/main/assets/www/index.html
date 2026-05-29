@@ -859,46 +859,46 @@ const questions = [
   {
     text: '面对一个全新的挑战，你第一反应是？',
     options: [
-      { text: '兴奋！马上查资料研究', scores: [3,2,1,2,0,1] },
-      { text: '先想想最坏的情况', scores: [0,1,2,1,3,2] },
-      { text: '找朋友聊聊再说', scores: [1,3,1,0,2,0] },
-      { text: '直接开干，边做边调', scores: [2,0,3,3,1,3] }
+      { text: '兴奋！马上查资料研究', scores: [3,2,1,2,0,1], keywords: ['兴奋','查资料','研究'] },
+      { text: '先想想最坏的情况', scores: [0,1,2,1,3,2], keywords: ['最坏','情况','想想'] },
+      { text: '找朋友聊聊再说', scores: [1,3,1,0,2,0], keywords: ['朋友','聊聊','聊天'] },
+      { text: '直接开干，边做边调', scores: [2,0,3,3,1,3], keywords: ['开干','直接','边做'] }
     ]
   },
   {
     text: '创业路上最不能缺的是什么？',
     options: [
-      { text: '清晰的商业计划', scores: [3,1,1,2,2,0] },
-      { text: '一群靠谱的伙伴', scores: [0,3,2,1,1,2] },
-      { text: '死碰到底的执行力', scores: [1,0,3,3,3,3] },
-      { text: '发现别人看不到的机会', scores: [2,3,0,0,0,1] }
+      { text: '清晰的商业计划', scores: [3,1,1,2,2,0], keywords: ['商业','计划','清晰'] },
+      { text: '一群靠谱的伙伴', scores: [0,3,2,1,1,2], keywords: ['伙伴','靠谱','朋友','团队'] },
+      { text: '死碰到底的执行力', scores: [1,0,3,3,3,3], keywords: ['执行','执行力','死碰'] },
+      { text: '发现别人看不到的机会', scores: [2,3,0,0,0,1], keywords: ['机会','发现','看到','眼光'] }
     ]
   },
   {
     text: '如果今天失败了，明天你会？',
     options: [
-      { text: '复盘一下哪里可以做得更好', scores: [1,2,2,1,3,2] },
-      { text: '换个方向，换种方式再来', scores: [3,3,1,2,0,1] },
-      { text: '休息一天，恢复状态继续', scores: [0,0,3,0,2,3] },
-      { text: '根本不会想失败的事', scores: [2,1,0,3,1,0] }
+      { text: '复盘一下哪里可以做得更好', scores: [1,2,2,1,3,2], keywords: ['复盘','更好','哪里'] },
+      { text: '换个方向，换种方式再来', scores: [3,3,1,2,0,1], keywords: ['换个','方向','方式','再来'] },
+      { text: '休息一天，恢复状态继续', scores: [0,0,3,0,2,3], keywords: ['休息','恢复','状态'] },
+      { text: '根本不会想失败的事', scores: [2,1,0,3,1,0], keywords: ['根本','不会','不想'] }
     ]
   },
   {
     text: '你更想和哪种类型的人一起创业？',
     options: [
-      { text: '有远见、敢做梦的理想派', scores: [3,2,0,2,0,1] },
-      { text: '擅长落地、快速执行的实干派', scores: [1,1,3,3,3,2] },
-      { text: '懂用户、会讲故事的增长派', scores: [0,3,1,0,1,0] },
-      { text: '默默做事、稳扎稳打的技术派', scores: [2,0,2,1,3,3] }
+      { text: '有远见、敢做梦的理想派', scores: [3,2,0,2,0,1], keywords: ['远见','做梦','理想'] },
+      { text: '擅长落地、快速执行的实干派', scores: [1,1,3,3,3,2], keywords: ['落地','实干','快速','执行'] },
+      { text: '懂用户、会讲故事的增长派', scores: [0,3,1,0,1,0], keywords: ['用户','故事','增长','懂'] },
+      { text: '默默做事、稳扎稳打的技术派', scores: [2,0,2,1,3,3], keywords: ['默默','稳扎','技术','做事'] }
     ]
   },
   {
     text: '你觉得成功的创业者最像什么？',
     options: [
-      { text: '灯塔 — 为大家指明方向', scores: [3,2,0,3,0,0] },
-      { text: '探险家 — 永远在发现新大陆', scores: [2,3,1,0,1,1] },
-      { text: '马拉松选手 — 跑赢的是耐力', scores: [0,0,3,0,3,3] },
-      { text: '炼金术士 — 化平凡为神奇', scores: [1,3,2,2,1,2] }
+      { text: '灯塔 — 为大家指明方向', scores: [3,2,0,3,0,0], keywords: ['灯塔','指明','方向'] },
+      { text: '探险家 — 永远在发现新大陆', scores: [2,3,1,0,1,1], keywords: ['探险','新大陆','发现'] },
+      { text: '马拉松选手 — 跑赢的是耐力', scores: [0,0,3,0,3,3], keywords: ['马拉松','耐力','跑赢'] },
+      { text: '炼金术士 — 化平凡为神奇', scores: [1,3,2,2,1,2], keywords: ['炼金','神奇','平凡'] }
     ]
   }
 ];
@@ -1204,26 +1204,89 @@ function showASRToast(msg, isError, autoHide=true) {
   }
 }
 
-function parseASRChoice(text) {
-  text = text.toLowerCase().replace(/\s/g, '');
-  if (text.includes('a') || text.includes('浪') || text.includes('一') || text.includes('1') || text.includes('甲') || text.includes('第一')) return 0;
-  if (text.includes('b') || text.includes('险') || text.includes('二') || text.includes('2') || text.includes('乙') || text.includes('第二')) return 1;
-  if (text.includes('c') || text.includes('成') || text.includes('三') || text.includes('3') || text.includes('丙') || text.includes('第三')) return 2;
-  if (text.includes('d') || text.includes('橙') || text.includes('四') || text.includes('4') || text.includes('丁') || text.includes('第四')) return 3;
+// ==================== SEMANTIC FUZZY MATCH ENGINE ====================
+// Scoring: keyword hit (50pts) > long substring (40pts) > medium substring (25pts) > short substring (10pts)
+// Each option must exceed MATCH_THRESHOLD to win, otherwise null (no match)
+const MATCH_THRESHOLD = 25;
 
-  // Match question option text content (fuzzy substring)
-  const q = questions[currentQ];
-  if (!q) return null;
-  for (let i = 0; i < q.options.length; i++) {
-    const optText = q.options[i].text;
-    for (let len = 4; len >= 2; len--) {
-      for (let start = 0; start <= optText.length - len; start++) {
-        const substr = optText.substring(start, start + len);
-        if (text.includes(substr)) return i;
+function _scoreKeyword(text, kw) {
+  // Exact keyword hit: 50 pts. Partial overlap bonus: 30 pts
+  if (text.includes(kw)) return 50;
+  // Check if any 2-char segment of keyword exists in text (ASR may misrecognize 1 char)
+  let best = 0;
+  for (let i = 0; i < kw.length - 1; i++) {
+    const seg = kw.substring(i, i + 2);
+    if (text.includes(seg)) best = Math.max(best, 30);
+  }
+  return best;
+}
+
+function _scoreSubstring(text, optText) {
+  // Longest common substring scoring
+  let best = 0;
+  // Check substrings from long to short
+  for (let len = Math.min(optText.length, text.length); len >= 3; len--) {
+    for (let s = 0; s <= optText.length - len; s++) {
+      const seg = optText.substring(s, s + len);
+      if (text.includes(seg)) {
+        if (len >= 5) return 40;       // 5+ char exact substring match
+        if (len >= 4) return 30;       // 4 char
+        best = Math.max(best, 20);     // 3 char
       }
     }
   }
-  return null;
+  // 2-char segments (common words): 10 pts each, max 20
+  let score2 = 0;
+  for (let s = 0; s <= optText.length - 2; s++) {
+    const seg = optText.substring(s, s + 2);
+    if (text.includes(seg)) score2 += 10;
+  }
+  return Math.max(best, Math.min(score2, 20));
+}
+
+function _scoreCharOverlap(text, optText) {
+  // Character overlap ratio as last resort: max 15 pts
+  const set = new Set(text.split(''));
+  let hit = 0;
+  for (const ch of optText) { if (set.has(ch)) hit++; }
+  return Math.round(15 * hit / optText.length);
+}
+
+function parseASRChoice(text) {
+  if (!text || !text.trim()) return null;
+  text = text.toLowerCase().replace(/[\s，。！？、,.!?！？]/g, '');
+  const q = questions[currentQ];
+  if (!q) return null;
+
+  let bestIdx = -1, bestScore = 0, scores = [];
+
+  for (let i = 0; i < q.options.length; i++) {
+    const opt = q.options[i];
+    const optText = opt.text.toLowerCase().replace(/[\s，。！？、,.!?！？—]/g, '');
+    let score = 0;
+
+    // Layer 1: Keyword match (highest priority)
+    if (opt.keywords) {
+      let kwScore = 0;
+      for (const kw of opt.keywords) {
+        kwScore = Math.max(kwScore, _scoreKeyword(text, kw));
+      }
+      score += kwScore;
+    }
+
+    // Layer 2: Substring match
+    score += _scoreSubstring(text, optText);
+
+    // Layer 3: Character overlap (tie-breaker)
+    score += _scoreCharOverlap(text, optText);
+
+    scores.push({ idx: i, score });
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  }
+
+  console.log('[ASR Match] text="' + text + '" | scores:', scores.map(s => '[' + ['A','B','C','D'][s.idx] + ':' + s.score + ']').join(' '), '| best:', ['A','B','C','D'][bestIdx], bestScore);
+
+  return bestScore >= MATCH_THRESHOLD ? bestIdx : null;
 }
 
 // ==================== NAVIGATION ====================

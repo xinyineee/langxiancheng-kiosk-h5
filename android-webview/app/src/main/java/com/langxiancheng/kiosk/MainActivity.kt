@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.os.Environment
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -23,6 +24,7 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.io.File
 
 // SUNMI AI Base SDK
 import com.sm.ai.framework.base_sdk.ISmSDKStateListener
@@ -106,7 +108,22 @@ class MainActivity : AppCompatActivity() {
 
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(AsrBridge(), "AndroidASR")
-        webView.loadUrl("file:///android_asset/www/index.html")
+
+        // Dev mode: load from /sdcard/Download/kiosk/ if index.html exists there
+        // This enables rapid iteration: adb push HTML+images → restart app → instant update
+        // No APK rebuild needed!
+        val devHtml = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "kiosk/index.html"
+        )
+        if (devHtml.exists()) {
+            val url = "file://${devHtml.absolutePath}"
+            Log.i(TAG, "DEV MODE: loading $url")
+            webView.loadUrl(url)
+        } else {
+            Log.i(TAG, "PROD MODE: loading bundled assets")
+            webView.loadUrl("file:///android_asset/www/index.html")
+        }
 
         // Request mic permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
