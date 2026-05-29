@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>浪险橙 Kiosk v2.1 Preview</title>
+<title>浪险橙 Kiosk v2.2 Preview</title>
 <style>
   :root {
     --brand: #FF6B1A;
@@ -707,41 +707,7 @@
     40% { transform: scale(1); opacity: 1; }
   }
 
-  /* ========== TTS/ASR Indicators ========== */
-  .tts-indicator {
-    position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 7px 18px;
-    background: rgba(255,107,26,0.12);
-    border: 1px solid rgba(255,107,26,0.25);
-    border-radius: 20px;
-    font-size: 12px;
-    color: var(--brand-light);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    z-index: 100;
-    opacity: 0;
-    transition: opacity 0.3s;
-    font-weight: 500;
-  }
-  .tts-indicator.visible { opacity: 1; }
-  .tts-indicator .bar {
-    width: 3px;
-    height: 14px;
-    background: var(--brand);
-    border-radius: 2px;
-    animation: tts-bar 0.8s ease infinite;
-  }
-  .tts-indicator .bar:nth-child(2) { animation-delay: 0.15s; height: 10px; }
-  .tts-indicator .bar:nth-child(3) { animation-delay: 0.3s; height: 16px; }
-  .tts-indicator .bar:nth-child(4) { animation-delay: 0.45s; height: 8px; }
-  @keyframes tts-bar {
-    0%,100% { transform: scaleY(0.5); }
-    50% { transform: scaleY(1.2); }
-  }
+  /* ========== ASR Indicator ========== */
 
   /* ========== PARTICLES ========== */
   .particle {
@@ -757,6 +723,40 @@
     50% { transform: translateY(-20px) scale(1.2); opacity: 0.3; }
   }
 
+  /* Live transcript (ASR interim results) */
+  .live-transcript {
+    position: fixed;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(34,197,94,0.4);
+    border-radius: 24px;
+    font-size: 16px;
+    color: #86efac;
+    z-index: 300;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    font-weight: 500;
+    max-width: 320px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(8px);
+  }
+  .live-transcript.visible { opacity: 1; }
+
+  /* ASR retry state */
+  .asr-btn.retry {
+    background: rgba(251,146,60,0.15);
+    border-color: #fb923c;
+    color: #fb923c;
+    animation: mic-pulse 0.8s ease 2;
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 0; }
 </style>
@@ -765,12 +765,6 @@
 
 <div id="app">
   <!-- Floating particles (added by JS) -->
-
-  <!-- TTS Indicator -->
-  <div class="tts-indicator" id="ttsIndicator">
-    <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
-    <span>语音播报中</span>
-  </div>
 
   <!-- ASR Toast -->
   <div class="asr-toast" id="asrToast"></div>
@@ -781,7 +775,7 @@
     <div class="deco-orbit"></div>
     <div class="deco-orbit"></div>
     <div class="idle-logo-wrap">
-      <img src="images/logo.png" class="idle-logo" alt="浪险橙">
+      <img src="images/logo.svg" class="idle-logo" alt="浪险橙">
     </div>
     <div class="idle-brand-name">浪险橙</div>
     <p class="idle-slogan">我们一起浪，一起险，一起成</p>
@@ -790,7 +784,7 @@
 
   <!-- Screen: Welcome -->
   <div class="screen welcome-screen" id="screenWelcome">
-    <img src="images/logo.png" class="welcome-logo" alt="浪险橙">
+    <img src="images/logo.svg" class="welcome-logo" alt="浪险橙">
     <div class="welcome-title">创业人格测试</div>
     <p class="welcome-sub">30秒发现你的前行饮品</p>
     <div class="features">
@@ -826,12 +820,11 @@
       <div class="q-progress-wrap">
         <div class="q-progress-bar" id="qProgressBar" style="width:20%"></div>
       </div>
-      <button class="voice-btn" id="voiceReplayBtn" onclick="speakQuestion()">🔊</button>
       <button class="asr-btn" id="asrBtn" onclick="toggleASR()" title="语音回答">🎤</button>
     </div>
     <div class="q-badge" id="qBadge">第1题</div>
     <div class="q-text" id="qText"></div>
-    <p class="q-hint">选择最符合你此刻状态的答案，或点击麦克风语音回答</p>
+    <p class="q-hint" id="qHint">选择最符合你此刻状态的答案，或直接说出选项</p>
     <div class="options" id="qOptions"></div>
   </div>
 
@@ -859,7 +852,6 @@
       <p class="heart-attribution">— 浪险橙咖啡</p>
     </div>
     <div class="result-actions">
-      <button class="result-btn primary" onclick="speakResult()">🔊 再听一遍</button>
       <button class="result-btn secondary" onclick="restart()">🔄 重新测试</button>
     </div>
   </div>
@@ -954,34 +946,29 @@ let scores = [0, 0, 0, 0, 0, 0];
 let timerInterval = null;
 let timerLeft = 10;
 
-// ==================== TTS ====================
-let ttsSupported = 'speechSynthesis' in window;
+// ==================== TTS (stub - TTS removed, callbacks still work) ====================
 let isSpeaking = false;
 
 function speak(text, onEnd) {
-  if (!ttsSupported) { if (onEnd) setTimeout(onEnd, 1000); return; }
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = 1.05;
-  u.pitch = 1.05;
-  u.onstart = () => { isSpeaking = true; document.getElementById('ttsIndicator').classList.add('visible'); };
-  u.onend = () => { isSpeaking = false; document.getElementById('ttsIndicator').classList.remove('visible'); if (onEnd) onEnd(); };
-  u.onerror = () => { isSpeaking = false; document.getElementById('ttsIndicator').classList.remove('visible'); if (onEnd) onEnd(); };
-  window.speechSynthesis.speak(u);
+  // TTS removed per user request - just fire callback immediately
+  if (onEnd) setTimeout(onEnd, 300);
 }
 
 function stopTTS() {
-  if (!ttsSupported) return;
-  window.speechSynthesis.cancel();
   isSpeaking = false;
-  document.getElementById('ttsIndicator').classList.remove('visible');
 }
 
-// ==================== ASR ====================
+function speakResult() {
+  // TTS removed - no-op
+}
+
+// ==================== ASR (Auto-listen mode) ====================
 let asrSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 let asrRecognition = null;
 let isListening = false;
+let asrAutoRestart = false;   // whether to auto-restart after end
+let asrRetryCount = 0;
+const ASR_MAX_RETRY = 3;
 
 function initASR() {
   if (!asrSupported) return;
@@ -994,66 +981,187 @@ function initASR() {
 
   asrRecognition.onstart = () => {
     isListening = true;
-    document.getElementById('asrBtn').classList.add('listening');
-    showASRToast('🎤 正在听，请说出答案...');
+    updateASRStatus('listening');
   };
 
   asrRecognition.onend = () => {
     isListening = false;
-    document.getElementById('asrBtn').classList.remove('listening');
+    // Auto restart if still on question screen and no answer yet
+    if (asrAutoRestart && document.getElementById('screenQuestion').classList.contains('active')) {
+      setTimeout(() => {
+        if (asrAutoRestart && !isListening) {
+          startASRListening();
+        }
+      }, 400);
+    } else {
+      updateASRStatus('idle');
+    }
   };
 
   asrRecognition.onresult = (event) => {
     const results = event.results;
     if (results.length > 0) {
-      const transcript = results[results.length - 1][0].transcript.trim();
-      showASRToast('🎤 识别到: "' + transcript + '"');
+      const lastResult = results[results.length - 1];
+      const transcript = lastResult[0].transcript.trim();
 
-      // Check if final result
-      if (results[results.length - 1].isFinal) {
-        const choice = parseASRChoice(transcript);
-        if (choice !== null) {
-          showASRToast('✅ 选择: ' + ['A','B','C','D'][choice]);
-          document.getElementById('asrBtn').classList.add('has-result');
-          setTimeout(() => {
-            document.getElementById('asrBtn').classList.remove('has-result');
-            selectOption(choice);
-          }, 800);
-        } else {
-          showASRToast('❗ 未识别，请说 A/B/C/D 或 浪/险/成/橙', true);
-          setTimeout(() => { document.getElementById('asrBtn').classList.remove('has-result'); }, 1500);
+      if (!lastResult.isFinal) {
+        // Show interim result as live feedback
+        showLiveTranscript(transcript);
+        return;
+      }
+
+      // Final result
+      hideLiveTranscript();
+      asrRetryCount = 0;
+
+      // Try all alternatives
+      let choice = null;
+      for (let alt = 0; alt < lastResult.length && choice === null; alt++) {
+        choice = parseASRChoice(lastResult[alt].transcript.trim());
+      }
+
+      if (choice !== null) {
+        asrAutoRestart = false;
+        updateASRStatus('success', ['A','B','C','D'][choice]);
+        setTimeout(() => {
+          updateASRStatus('idle');
+          selectOption(choice);
+        }, 600);
+      } else {
+        // Not recognized - show what we heard, auto retry
+        updateASRStatus('retry', transcript);
+        asrRetryCount++;
+        if (asrRetryCount <= ASR_MAX_RETRY) {
+          // auto restart
         }
+        // asrAutoRestart stays true so onend will restart
       }
     }
   };
 
   asrRecognition.onerror = (event) => {
     isListening = false;
-    document.getElementById('asrBtn').classList.remove('listening');
+    hideLiveTranscript();
     if (event.error === 'no-speech') {
-      showASRToast('❗ 没有检测到语音，请再试一次', true);
+      // Silently restart on no-speech
+      updateASRStatus('listening');
     } else if (event.error === 'not-allowed') {
-      showASRToast('❗ 麦克风权限被拒绝', true);
+      asrAutoRestart = false;
+      updateASRStatus('denied');
+    } else if (event.error === 'aborted') {
+      // intentional stop
     } else {
-      showASRToast('❗ 语音识别出错: ' + event.error, true);
+      updateASRStatus('error', event.error);
     }
   };
 }
 
+function startASRListening() {
+  if (!asrSupported || !asrRecognition) return;
+  try {
+    asrRecognition.start();
+  } catch(e) {
+    // already started or other error, ignore
+  }
+}
+
+function stopASRListening() {
+  asrAutoRestart = false;
+  if (asrRecognition && isListening) {
+    try { asrRecognition.stop(); } catch(e) {}
+  }
+  isListening = false;
+  hideLiveTranscript();
+  updateASRStatus('idle');
+}
+
+function enableAutoASR() {
+  if (!asrSupported) return;
+  if (!asrRecognition) initASR();
+  asrAutoRestart = true;
+  asrRetryCount = 0;
+  startASRListening();
+}
+
+function toggleASR() {
+  if (!asrSupported) {
+    showASRToast('当前浏览器不支持语音识别', true);
+    return;
+  }
+  if (isListening || asrAutoRestart) {
+    stopASRListening();
+  } else {
+    enableAutoASR();
+  }
+}
+
+// ---- ASR UI helpers ----
+function updateASRStatus(state, extra) {
+  const btn = document.getElementById('asrBtn');
+  const hint = document.getElementById('qHint');
+  btn.className = 'asr-btn';
+
+  if (state === 'listening') {
+    btn.classList.add('listening');
+    if (hint) hint.textContent = '🎤 正在听... 直接说出你的选择';
+    showASRToast('', false, false);  // clear
+  } else if (state === 'success') {
+    btn.classList.add('has-result');
+    showASRToast('✅ 已选 ' + extra, false);
+    if (hint) hint.textContent = '✅ 已识别：' + extra;
+  } else if (state === 'retry') {
+    btn.classList.add('retry');
+    const msg = extra ? '"' + extra + '" 未匹配，再说一次' : '未识别，再说一次';
+    showASRToast('🔄 ' + msg, true);
+    if (hint) hint.textContent = '🔄 未识别，请再说一遍';
+  } else if (state === 'denied') {
+    showASRToast('麦克风权限被拒绝，请在浏览器设置中允许', true);
+    if (hint) hint.textContent = '请允许麦克风权限后刷新';
+  } else if (state === 'error') {
+    showASRToast('语音识别出错: ' + (extra||''), true);
+  } else {
+    // idle
+    if (hint) hint.textContent = '选择最符合你此刻状态的答案，或直接说出选项';
+  }
+}
+
+let liveTranscriptEl = null;
+function showLiveTranscript(text) {
+  if (!liveTranscriptEl) {
+    liveTranscriptEl = document.createElement('div');
+    liveTranscriptEl.className = 'live-transcript';
+    document.getElementById('app').appendChild(liveTranscriptEl);
+  }
+  liveTranscriptEl.textContent = '🎤 ' + text + '...';
+  liveTranscriptEl.classList.add('visible');
+}
+function hideLiveTranscript() {
+  if (liveTranscriptEl) liveTranscriptEl.classList.remove('visible');
+}
+
+function showASRToast(msg, isError, autoHide=true) {
+  const toast = document.getElementById('asrToast');
+  if (!msg) { toast.classList.remove('visible'); return; }
+  toast.textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('visible');
+  if (autoHide) {
+    setTimeout(() => { toast.classList.remove('visible'); }, isError ? 3000 : 2000);
+  }
+}
+
 function parseASRChoice(text) {
   text = text.toLowerCase().replace(/\s/g, '');
-  // Map keywords to options
-  if (text.includes('a') || text.includes('浪') || text.includes('一') || text.includes('1') || text.includes('甲')) return 0;
-  if (text.includes('b') || text.includes('险') || text.includes('二') || text.includes('2') || text.includes('乙')) return 1;
-  if (text.includes('c') || text.includes('成') || text.includes('三') || text.includes('3') || text.includes('丙')) return 2;
-  if (text.includes('d') || text.includes('橙') || text.includes('四') || text.includes('4') || text.includes('丁')) return 3;
+  if (text.includes('a') || text.includes('浪') || text.includes('一') || text.includes('1') || text.includes('甲') || text.includes('第一')) return 0;
+  if (text.includes('b') || text.includes('险') || text.includes('二') || text.includes('2') || text.includes('乙') || text.includes('第二')) return 1;
+  if (text.includes('c') || text.includes('成') || text.includes('三') || text.includes('3') || text.includes('丙') || text.includes('第三')) return 2;
+  if (text.includes('d') || text.includes('橙') || text.includes('四') || text.includes('4') || text.includes('丁') || text.includes('第四')) return 3;
 
-  // Try to match option text content (Chinese)
+  // Match question option text content (fuzzy substring)
   const q = questions[currentQ];
   if (!q) return null;
   for (let i = 0; i < q.options.length; i++) {
     const optText = q.options[i].text;
-    // Simple substring matching
     for (let len = 4; len >= 2; len--) {
       for (let start = 0; start <= optText.length - len; start++) {
         const substr = optText.substring(start, start + len);
@@ -1064,33 +1172,6 @@ function parseASRChoice(text) {
   return null;
 }
 
-function toggleASR() {
-  if (!asrSupported) {
-    showASRToast('❗ 当前浏览器不支持语音识别', true);
-    return;
-  }
-  if (!asrRecognition) initASR();
-  if (isListening) {
-    asrRecognition.stop();
-    isListening = false;
-    document.getElementById('asrBtn').classList.remove('listening');
-  } else {
-    try {
-      asrRecognition.start();
-    } catch (e) {
-      showASRToast('❗ 无法启动语音识别', true);
-    }
-  }
-}
-
-function showASRToast(msg, isError) {
-  const toast = document.getElementById('asrToast');
-  toast.textContent = msg;
-  toast.classList.toggle('error', !!isError);
-  toast.classList.add('visible');
-  setTimeout(() => { toast.classList.remove('visible'); }, isError ? 2500 : 2000);
-}
-
 // ==================== NAVIGATION ====================
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1099,7 +1180,6 @@ function showScreen(id) {
 
 function goWelcome() {
   showScreen('screenWelcome');
-  speak('欢迎来到浪险橙咖啡！我是你的前行向导。接下来，只需5道趣味题，30秒就能匹配到专属于你的前行饮品。准备好了吗？');
 }
 
 function startTest() {
@@ -1110,11 +1190,7 @@ function startTest() {
 }
 
 function restart() {
-  stopTTS();
-  if (isListening && asrRecognition) {
-    asrRecognition.stop();
-    isListening = false;
-  }
+  stopASRListening();
   showScreen('screenIdle');
 }
 
@@ -1151,8 +1227,9 @@ function renderQuestion() {
     optsEl.appendChild(card);
   });
 
-  speakQuestion();
   startTimer();
+  // Auto-start ASR listening when question is shown
+  enableAutoASR();
 }
 
 function speakQuestion() {
@@ -1185,10 +1262,11 @@ function selectOption(index) {
   });
 
   const labels = ['A', 'B', 'C', 'D'];
-  speak('你选择了' + labels[index] + '，' + opt.text, () => {
+  // TTS removed - move to next question after short animation pause
+  setTimeout(() => {
     currentQ++;
     renderQuestion();
-  });
+  }, 600);
 }
 
 function startTimer() {
@@ -1210,21 +1288,15 @@ function startTimer() {
     }
     if (timerLeft <= 0) {
       clearInterval(timerInterval);
-      speak('时间到，自动跳到下一题', () => {
-        currentQ++;
-        renderQuestion();
-      });
+      currentQ++;
+      renderQuestion();
     }
   }, 1000);
 }
 
 // ==================== RESULT ====================
 function finishTest() {
-  stopTTS();
-  if (isListening && asrRecognition) {
-    asrRecognition.stop();
-    isListening = false;
-  }
+  stopASRListening();
   showScreen('screenLoading');
 
   let maxScore = -1;
@@ -1255,14 +1327,12 @@ function finishTest() {
       imgEl.src = drink.img;
       cardEl.classList.remove('img-loading');
       showScreen('screenResult');
-      speak('恭喜你！你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
     };
     preloadImg.onerror = function() {
       imgEl.style.display = 'none';
       cardEl.classList.remove('img-loading');
       cardEl.classList.add('img-error');
       showScreen('screenResult');
-      speak('恭喜你！你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
     };
     preloadImg.src = drink.img;
   }, 1800);
