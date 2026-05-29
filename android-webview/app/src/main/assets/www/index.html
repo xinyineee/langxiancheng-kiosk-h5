@@ -548,10 +548,11 @@ html, body {
 }
 .asr-header-btn:active { background: var(--orange-subtle); }
 .asr-header-btn.listening {
-  background: var(--orange-subtle);
+  background: var(--orange);
   border-color: var(--orange);
-  color: var(--orange);
-  animation: mic-pulse 1.2s ease infinite;
+  color: #FFF;
+  animation: mic-breathe 1.6s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(255,107,53,0.4);
 }
 .asr-header-btn.has-result {
   background: var(--orange-subtle);
@@ -564,25 +565,9 @@ html, body {
   color: #FB923C;
 }
 
-@keyframes mic-pulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(255,107,53,0.3); }
-  50% { box-shadow: 0 0 0 8px rgba(255,107,53,0); }
-}
-
-/* Timer */
-.quiz-timer {
-  margin-top: var(--s3);
-  padding: 10px 20px;
-  background: #FFF3E0;
-  border: 1px solid #FFCC80;
-  border-radius: var(--r-sm);
-  font-size: 0.82rem;
-  color: var(--orange-mid);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  animation: fadeUp 0.3s var(--ease-out) both;
+@keyframes mic-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 12px 4px rgba(255,107,53,0.15); transform: scale(1.08); }
 }
 
 /* ============================================
@@ -967,29 +952,8 @@ html, body {
   background: #C62828;
 }
 
-/* Live transcript */
-.live-transcript {
-  position: absolute;
-  bottom: 150px; left: 50%; transform: translateX(-50%);
-  padding: 10px 20px;
-  background: rgba(0,0,0,0.75);
-  border: 1px solid var(--orange);
-  border-radius: var(--r-full);
-  font-size: 0.85rem;
-  color: #FFF;
-  z-index: 300;
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-  font-weight: 400;
-  max-width: 320px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  backdrop-filter: blur(8px);
-}
-.live-transcript.visible { opacity: 1; }
+/* Live transcript — inline, non-blocking */
+/* live-transcript removed — text shown inline in hint area */
 
 /* Utility animation */
 @keyframes fadeUp {
@@ -1251,8 +1215,7 @@ const questions = [
 // ==================== STATE ====================
 let currentQ = 0;
 let scores = [0, 0, 0, 0, 0, 0];
-let timerInterval = null;
-let timerLeft = 10;
+
 
 // ==================== ASR (Auto-listen mode) ====================
 const asrBridge = (typeof AndroidASR !== 'undefined') ? AndroidASR : null;
@@ -1265,6 +1228,7 @@ let asrRecognition = null;
 let isListening = false;
 let asrAutoRestart = false;
 let asrRetryCount = 0;
+let asrMatched = false;
 const ASR_MAX_RETRY = 3;
 
 // ---- Native ASR callbacks ----
@@ -1284,17 +1248,37 @@ window._asrOnStart = function() {
 window._asrOnStop = function() {
   isListening = false;
   if (asrAutoRestart && document.getElementById('screen-quiz').classList.contains('active')) {
-    setTimeout(() => { if (asrAutoRestart && !isListening) startASRListening(); }, 400);
+    // If using native bridge with Kotlin autoContinue, Kotlin handles restart in 100ms — just update UI
+    if (useNativeASR && asrBridgeReady) {
+      updateASRStatus('listening');
+    } else {
+      setTimeout(() => { if (asrAutoRestart && !isListening) startASRListening(); }, 200);
+    }
   } else {
     updateASRStatus('idle');
   }
 };
 window._asrOnPartial = function(results) {
-  if (results && results.length > 0) showLiveTranscript(results[0]);
+  if (results && results.length > 0) {
+    const text = results[0];
+    showLiveTranscript(text);
+    // Fast-path: try early match on partial result (4+ chars) to reduce perceived latency
+    if (text && text.length >= 4 && !asrMatched) {
+      const choice = parseASRChoice(text);
+      if (choice !== null) {
+        asrMatched = true;
+        asrAutoRestart = false;
+        updateASRStatus('success', ['A','B','C','D'][choice]);
+        setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 300);
+      }
+    }
+  }
 };
 window._asrOnResult = function(results) {
   hideLiveTranscript();
   asrRetryCount = 0;
+  // If already matched via partial, skip
+  if (asrMatched) { asrMatched = false; return; }
   let choice = null;
   for (let i = 0; i < (results || []).length && choice === null; i++) {
     choice = parseASRChoice(results[i]);
@@ -1302,7 +1286,7 @@ window._asrOnResult = function(results) {
   if (choice !== null) {
     asrAutoRestart = false;
     updateASRStatus('success', ['A','B','C','D'][choice]);
-    setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 600);
+    setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 300);
   } else {
     updateASRStatus('retry', (results || [])[0] || '');
     asrRetryCount++;
@@ -1336,7 +1320,7 @@ function initASR() {
   asrRecognition.onend = () => {
     isListening = false;
     if (asrAutoRestart && document.getElementById('screen-quiz').classList.contains('active')) {
-      setTimeout(() => { if (asrAutoRestart && !isListening) startASRListening(); }, 400);
+      setTimeout(() => { if (asrAutoRestart && !isListening) startASRListening(); }, 200);
     } else { updateASRStatus('idle'); }
   };
   asrRecognition.onresult = (event) => {
@@ -1344,8 +1328,22 @@ function initASR() {
     if (results.length > 0) {
       const lastResult = results[results.length - 1];
       const transcript = lastResult[0].transcript.trim();
-      if (!lastResult.isFinal) { showLiveTranscript(transcript); return; }
+      if (!lastResult.isFinal) {
+        showLiveTranscript(transcript);
+        // Fast-path: early match on partial (4+ chars)
+        if (transcript.length >= 4 && !asrMatched) {
+          const choice = parseASRChoice(transcript);
+          if (choice !== null) {
+            asrMatched = true;
+            asrAutoRestart = false;
+            updateASRStatus('success', ['A','B','C','D'][choice]);
+            setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 300);
+          }
+        }
+        return;
+      }
       hideLiveTranscript();
+      if (asrMatched) { asrMatched = false; return; }
       asrRetryCount = 0;
       let choice = null;
       for (let alt = 0; alt < lastResult.length && choice === null; alt++) {
@@ -1354,7 +1352,7 @@ function initASR() {
       if (choice !== null) {
         asrAutoRestart = false;
         updateASRStatus('success', ['A','B','C','D'][choice]);
-        setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 600);
+        setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 300);
       } else {
         updateASRStatus('retry', transcript);
         asrRetryCount++;
@@ -1389,9 +1387,13 @@ function enableAutoASR() {
     setTimeout(() => { if (asrAutoRestart) enableAutoASR(); }, 500);
     return;
   }
-  if (useNativeASR && !asrBridgeReady) return;
   asrAutoRestart = true;
   asrRetryCount = 0;
+  asrMatched = false;
+  // Tell Kotlin to auto-continue ASR sessions (skip HTML round-trip delay)
+  if (useNativeASR) {
+    try { asrBridge.setAutoContinue(true); } catch(e) { console.warn('[ASR] setAutoContinue failed', e); }
+  }
   startASRListening();
 }
 
@@ -1403,17 +1405,17 @@ function updateASRStatus(state, extra) {
 
   if (state === 'listening') {
     if (btn) btn.classList.add('listening');
-    if (hint) hint.innerHTML = '正在听... 直接说出你的选择 <span class="asr-tip">🎤</span>';
+    if (hint) hint.innerHTML = '<span style="color:var(--orange)">正在听…</span> 说出你的选择';
     showASRToast('', false, false);
   } else if (state === 'success') {
     if (btn) btn.classList.add('has-result');
     showASRToast('✅ 已选 ' + extra, false);
-    if (hint) hint.textContent = '✅ 已识别：' + extra;
+    if (hint) hint.innerHTML = '<span style="color:var(--orange)">✅ 已选 ' + extra + '</span>';
   } else if (state === 'retry') {
     if (btn) btn.classList.add('retry');
     const msg = extra ? '"' + extra + '" 未匹配，再说一次' : '未识别，再说一次';
     showASRToast('🔄 ' + msg, true);
-    if (hint) hint.textContent = '🔄 未识别，请再说一遍';
+    if (hint) hint.innerHTML = '<span style="color:#FB923C">🔄 未匹配，再说一次</span>';
   } else if (state === 'denied') {
     showASRToast('麦克风权限被拒绝', true);
     if (hint) hint.textContent = '请允许麦克风权限';
@@ -1425,18 +1427,14 @@ function updateASRStatus(state, extra) {
   }
 }
 
-let liveTranscriptEl = null;
 function showLiveTranscript(text) {
-  if (!liveTranscriptEl) {
-    liveTranscriptEl = document.createElement('div');
-    liveTranscriptEl.className = 'live-transcript';
-    document.getElementById('kiosk').appendChild(liveTranscriptEl);
+  const hint = document.getElementById('quizHint');
+  if (hint) {
+    hint.innerHTML = '<span style="color:var(--orange);font-weight:500">🎤 ' + text + '</span><span style="opacity:0.5"> ...</span>';
   }
-  liveTranscriptEl.textContent = '🎤 ' + text + '...';
-  liveTranscriptEl.classList.add('visible');
 }
 function hideLiveTranscript() {
-  if (liveTranscriptEl) liveTranscriptEl.classList.remove('visible');
+  // hint will be restored by next updateASRStatus call
 }
 
 function showASRToast(msg, isError, autoHide=true) {
@@ -1541,7 +1539,6 @@ function startQuiz() {
 
 function handleQuizBack() {
   stopASRListening();
-  clearInterval(timerInterval);
   if (currentQ > 0) {
     currentQ--;
     // Remove last answer's scores
@@ -1590,16 +1587,14 @@ function renderQuestion() {
         </button>
       `).join('')}
     </div>
-    <div id="quizTimerSlot"></div>
   `;
 
-  startTimer();
+  // No auto-advance timer — user must click or voice-match to proceed
   enableAutoASR();
 }
 
 function selectOption(index) {
   stopASRListening();
-  clearInterval(timerInterval);
 
   const q = questions[currentQ];
   q.options[index].scores.forEach((s, i) => { scores[i] += s; });
@@ -1615,25 +1610,6 @@ function selectOption(index) {
     currentQ++;
     renderQuestion();
   }, 600);
-}
-
-function startTimer() {
-  clearInterval(timerInterval);
-  timerLeft = 10;
-  timerInterval = setInterval(() => {
-    timerLeft--;
-    if (timerLeft <= 3) {
-      let slot = document.getElementById('quizTimerSlot');
-      if (slot) {
-        slot.innerHTML = '<div class="quiz-timer">⏰ 还有 ' + timerLeft + ' 秒</div>';
-      }
-    }
-    if (timerLeft <= 0) {
-      clearInterval(timerInterval);
-      currentQ++;
-      renderQuestion();
-    }
-  }, 1000);
 }
 
 // ==================== RESULT ====================

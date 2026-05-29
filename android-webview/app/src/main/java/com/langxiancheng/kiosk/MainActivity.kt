@@ -41,14 +41,21 @@ import com.sm.ai.framework.asr.aidl.result.IContinuationRequestCallback
 import com.sm.ai.framework.asr.sdk.lifecycle.ISpeechSessionLifecycle
 
 /**
- * WebView shell for LangXianCheng Kiosk v2.3
- * ASR: SUNMI Voice SDK (primary) + Android SpeechRecognizer (fallback)
+ * WebView shell for LangXianCheng Kiosk v2.4
+ * ASR: SUNMI Voice SDK (LOCAL→WEB fallback) + Android SpeechRecognizer (last resort)
+ *
+ * v2.4 changes:
+ * - Try LOCAL mode first for instant offline ASR, fallback to WEB if empty results
+ * - Auto-restart session in Kotlin (skip HTML round-trip delay)
+ * - Precise timing logs for latency diagnosis
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "LXCKiosk"
         private const val MIC_REQUEST = 1001
+        /** How many consecutive empty LOCAL results before switching to WEB */
+        private const val LOCAL_EMPTY_THRESHOLD = 2
     }
 
     private lateinit var webView: WebView
@@ -58,6 +65,18 @@ class MainActivity : AppCompatActivity() {
     private var sunmiBaseReady = false
     private var sunmiSpeechReady = false
     private var sunmiAsrActive = false
+    /** Current ASR mode: "local" or "web" */
+    private var currentAsrMode = "local"
+    /** Consecutive empty results from LOCAL mode */
+    private var localEmptyCount = 0
+    /** Whether LOCAL mode has been permanently disabled (fell back to WEB) */
+    private var localDisabled = false
+    /** Whether HTML wants ASR to auto-continue after session ends */
+    private var autoContinue = false
+    /** Last language requested via JSBridge */
+    private var lastLang = "zh-CN"
+    /** Timestamp for timing logs */
+    private var sessionStartTime = 0L
 
     // ---- Android SpeechRecognizer fallback ----
     private var androidRecognizer: SpeechRecognizer? = null
@@ -113,9 +132,6 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(AsrBridge(), "AndroidASR")
 
         // Dev mode: load from app's external files dir if index.html exists there
-        // Path: /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/index.html
-        // Push: adb push index.html /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/
-        // No permissions needed on Android 11+ and adb can write here directly
         val devDir = File(getExternalFilesDir(null), "kiosk")
         val devHtml = File(devDir, "index.html")
         if (devDir.exists() && devHtml.exists()) {
@@ -175,10 +191,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         webView.onPause()
+        autoContinue = false
         stopAllAsr()
     }
 
     override fun onDestroy() {
+        autoContinue = false
         destroySunmiSpeechSDK()
         androidRecognizer?.destroy()
         webView.destroy()
@@ -263,17 +281,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun initSunmiSpeechSDK() {
         try {
+            // Start with LOCAL mode for fastest recognition
+            // Will auto-fallback to WEB if LOCAL produces empty results
             val config = InitialConfig("", "", "").apply {
-                asrMode = SmAsrMode.WEB  // use WEB mode (LOCAL produces empty results on this device)
+                asrMode = SmAsrMode.LOCAL
             }
+            currentAsrMode = "local"
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
                     override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK init success, using SUNMI ASR engine")
+                        Log.i(TAG, "SUNMI speech SDK init success (LOCAL mode), using SUNMI ASR engine")
                         sunmiSpeechReady = true
                         activeEngine = "sunmi"
                         handler.post {
-                            runJs("window._asrOnEngineReady('sunmi', '')")
+                            runJs("window._asrOnEngineReady('sunmi', 'local')")
                         }
                     }
                     override fun onInitFail(errorCode: String) {
@@ -288,6 +309,44 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.w(TAG, "initSunmiSpeechSDK exception", e)
             runJs("window._asrOnEngineReady('android', 'speech-init-exception')")
+        }
+    }
+
+    /** Re-initialize SDK with WEB mode after LOCAL mode fails */
+    private fun switchToWebMode() {
+        if (currentAsrMode == "web") return
+        Log.i(TAG, "Switching ASR from LOCAL → WEB mode (LOCAL produced $localEmptyCount empty results)")
+        currentAsrMode = "web"
+        localDisabled = true
+        try {
+            SmSpeechSDK.getInstance().destroy()
+            sunmiSpeechReady = false
+            sunmiAsrActive = false
+
+            val config = InitialConfig("", "", "").apply {
+                asrMode = SmAsrMode.WEB
+            }
+            SmSpeechSDK.getInstance().initialize(this, config,
+                object : ISpeechServiceStateListener {
+                    override fun onInitSuccess() {
+                        Log.i(TAG, "SUNMI speech SDK re-init success (WEB mode)")
+                        sunmiSpeechReady = true
+                        activeEngine = "sunmi"
+                        runJs("window._asrOnEngineReady('sunmi', 'web')")
+                    }
+                    override fun onInitFail(errorCode: String) {
+                        Log.w(TAG, "SUNMI speech SDK WEB init fail: $errorCode")
+                        activeEngine = "android"
+                        runJs("window._asrOnEngineReady('android', '')")
+                    }
+                    override fun onDisconnected(code: Int, reason: String) {
+                        Log.w(TAG, "SUNMI speech disconnected: $code $reason")
+                    }
+                })
+        } catch (e: Exception) {
+            Log.w(TAG, "switchToWebMode exception", e)
+            activeEngine = "android"
+            runJs("window._asrOnEngineReady('android', '')")
         }
     }
 
@@ -307,15 +366,33 @@ class MainActivity : AppCompatActivity() {
         if (!sunmiSpeechReady) return
         try {
             sunmiAsrActive = true
-            // wakeUpCallback = null → skip wake-up, start ASR directly
+            sessionStartTime = System.currentTimeMillis()
+            Log.i(TAG, "ASR start [mode=$currentAsrMode] t=0ms")
+
             SmSpeechSDK.getInstance().startSemanticRecognizer(
                 15000L,  // 15s timeout
                 null as ISpeechSessionResultCallback.IWakeUpCallback?,
                 object : ISpeechSessionResultCallback.IStreamingSpeechRecognitionCallback {
                     override fun onPartialResult(partialText: String, direction: Int, translate: Boolean) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.d(TAG, "ASR partial [${elapsed}ms]: $partialText")
                         runJs("window._asrOnPartial(['${partialText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}'])")
                     }
                     override fun onAsrFinalResult(finalText: String, direction: Int, translate: Boolean) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "ASR final [${elapsed}ms]: $finalText")
+
+                        // LOCAL mode empty result detection
+                        if (currentAsrMode == "local" && finalText.isBlank()) {
+                            localEmptyCount++
+                            Log.w(TAG, "LOCAL empty result #$localEmptyCount")
+                            if (localEmptyCount >= LOCAL_EMPTY_THRESHOLD && !localDisabled) {
+                                switchToWebMode()
+                            }
+                        } else if (finalText.isNotBlank()) {
+                            localEmptyCount = 0  // reset on successful result
+                        }
+
                         val json = "[\"${finalText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}\"]"
                         runJs("window._asrOnResult($json)")
                     }
@@ -325,16 +402,17 @@ class MainActivity : AppCompatActivity() {
                         currentResult: String?,
                         promptText: String?,
                         callback: IContinuationRequestCallback?
-                    ) { /* not needed for kiosk */ }
+                    ) { /* not needed */ }
                     override fun onSemanticResult(
                         nluResult: String?,
                         callback: IContinuationRequestCallback?
-                    ) { /* ignore semantic results, only care about ASR text */ }
+                    ) { /* ignore semantic, only ASR text */ }
                     override fun onError(
                         errorCode: String?,
                         callback: IContinuationRequestCallback?
                     ) {
-                        Log.w(TAG, "SUNMI ASR error: $errorCode")
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.w(TAG, "ASR error [${elapsed}ms]: $errorCode (mode=$currentAsrMode)")
                         val errCode = errorCode ?: "unknown"
                         runJs("window._asrOnError('sunmi-error:$errCode')")
                     }
@@ -345,17 +423,36 @@ class MainActivity : AppCompatActivity() {
                     override fun buildLlmSourceLang(): String = ""
                 },
                 object : ISpeechSessionLifecycle {
-                    override fun onSessionReady() { Log.d(TAG, "SUNMI session ready") }
+                    override fun onSessionReady() {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "ASR session ready [${elapsed}ms]")
+                    }
                     override fun onWakeUpReady() {}
-                    override fun onCaptureStarted() { runJs("window._asrOnStart()") }
+                    override fun onCaptureStarted() {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "ASR capture started [${elapsed}ms]")
+                        runJs("window._asrOnStart()")
+                    }
                     override fun onCapturePaused() {}
                     override fun onCaptureResumed() {}
                     override fun onSemanticProcessingStarted() {}
                     override fun onSemanticProcessingIncomplete() {}
                     override fun onSemanticProcessingCompleted() {}
                     override fun onSessionEnded() {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "ASR session ended [${elapsed}ms], autoContinue=$autoContinue")
                         sunmiAsrActive = false
                         runJs("window._asrOnStop()")
+
+                        // Auto-restart: skip HTML round-trip, start new session immediately
+                        if (autoContinue) {
+                            handler.postDelayed({
+                                if (autoContinue && !sunmiAsrActive && sunmiSpeechReady) {
+                                    Log.i(TAG, "Auto-continuing ASR session (0ms HTML delay)")
+                                    sunmiStartListening(lastLang)
+                                }
+                            }, 100)  // 100ms settle time instead of 200ms HTML round-trip
+                        }
                     }
                 }
             )
@@ -367,6 +464,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sunmiStopListening() {
+        autoContinue = false
         try {
             if (sunmiAsrActive) {
                 SmSpeechSDK.getInstance().stopSemanticRecognizer()
@@ -467,9 +565,9 @@ class MainActivity : AppCompatActivity() {
     // ================================================================
 
     private fun stopAllAsr() {
+        autoContinue = false
         sunmiStopListening()
         androidStopListening()
-        // Don't reset activeEngine here — only reset on explicit destroy
     }
 
     // ================================================================
@@ -482,9 +580,13 @@ class MainActivity : AppCompatActivity() {
         fun getEngine(): String = activeEngine
 
         @JavascriptInterface
+        fun getAsrMode(): String = currentAsrMode
+
+        @JavascriptInterface
         fun startListening(lang: String) {
             runOnUiThread {
-                Log.i(TAG, "JSBridge startListening, engine=$activeEngine, lang=$lang")
+                lastLang = lang
+                Log.i(TAG, "JSBridge startListening, engine=$activeEngine, mode=$currentAsrMode, lang=$lang")
                 when (activeEngine) {
                     "sunmi" -> {
                         if (sunmiSpeechReady) sunmiStartListening(lang)
@@ -502,9 +604,17 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun stopListening() {
             runOnUiThread {
+                autoContinue = false
                 stopAllAsr()
                 runJs("window._asrOnStop()")
             }
+        }
+
+        /** HTML tells Kotlin to auto-continue ASR after session ends */
+        @JavascriptInterface
+        fun setAutoContinue(continueListening: Boolean) {
+            autoContinue = continueListening
+            Log.d(TAG, "setAutoContinue: $continueListening")
         }
 
         @JavascriptInterface
