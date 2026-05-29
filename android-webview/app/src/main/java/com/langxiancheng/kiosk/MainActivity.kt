@@ -236,7 +236,7 @@ class MainActivity : AppCompatActivity() {
     private fun initSunmiSpeechSDK() {
         try {
             val config = InitialConfig("", "", "").apply {
-                asrMode = SmAsrMode.LOCAL  // force LOCAL mode for kiosk
+                asrMode = SmAsrMode.WEB  // use WEB mode (LOCAL produces empty results on this device)
             }
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
@@ -430,7 +430,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopAllAsr() {
         sunmiStopListening()
         androidStopListening()
-        activeEngine = "none"
+        // Don't reset activeEngine here — only reset on explicit destroy
     }
 
     // ================================================================
