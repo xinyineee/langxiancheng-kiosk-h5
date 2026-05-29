@@ -1289,6 +1289,10 @@ window._asrOnResult = function(results) {
     setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 300);
   } else {
     updateASRStatus('retry', (results || [])[0] || '');
+    // Report no-match to Kotlin for LOCAL→WEB fallback
+    if (useNativeASR && asrBridgeReady) {
+      try { asrBridge.reportNoMatch(); } catch(e) {}
+    }
     asrRetryCount++;
   }
 };

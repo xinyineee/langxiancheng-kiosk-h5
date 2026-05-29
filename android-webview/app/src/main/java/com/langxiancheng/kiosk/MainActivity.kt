@@ -413,6 +413,12 @@ class MainActivity : AppCompatActivity() {
                     ) {
                         val elapsed = System.currentTimeMillis() - sessionStartTime
                         Log.w(TAG, "ASR error [${elapsed}ms]: $errorCode (mode=$currentAsrMode)")
+                        // Suppress semantic/NLU errors — we only use ASR text, not NLU
+                        if (errorCode != null && (errorCode.startsWith("A-FSN") ||
+                            errorCode.contains("tool.json") || errorCode.contains("promptUUID"))) {
+                            Log.d(TAG, "Suppressed semantic error (not an ASR error)")
+                            return
+                        }
                         val errCode = errorCode ?: "unknown"
                         runJs("window._asrOnError('sunmi-error:$errCode')")
                     }
@@ -623,6 +629,18 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun isAndroidAvailable(): Boolean =
             SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+
+        /** HTML reports ASR no-match — counts towards LOCAL→WEB fallback */
+        @JavascriptInterface
+        fun reportNoMatch() {
+            if (currentAsrMode == "local" && !localDisabled) {
+                localEmptyCount++
+                Log.w(TAG, "LOCAL no-match reported by HTML, count=$localEmptyCount")
+                if (localEmptyCount >= LOCAL_EMPTY_THRESHOLD) {
+                    switchToWebMode()
+                }
+            }
+        }
     }
 
     // ================================================================
