@@ -14,7 +14,6 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
-import android.os.Environment
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -113,29 +112,24 @@ class MainActivity : AppCompatActivity() {
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(AsrBridge(), "AndroidASR")
 
-        // Dev mode: load from /sdcard/Download/kiosk/ if index.html exists there
-        // This enables rapid iteration: adb push HTML+images → restart app → instant update
-        // No APK rebuild needed!
-        val devDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "kiosk"
-        )
+        // Dev mode: load from app's external files dir if index.html exists there
+        // Path: /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/index.html
+        // Push command: adb push index.html /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/
+        // No permissions needed on Android 11+ and adb can write here directly
+        val devDir = File(externalCacheDir, "kiosk")
         val devHtml = File(devDir, "index.html")
         if (devDir.exists() && devHtml.exists()) {
             try {
-                // Android 11+ blocks loadUrl("file:///sdcard/..."), so read HTML string
-                // and use loadDataWithBaseURL with base URL pointing to sdcard dir
-                // so that relative image paths (images/drink1.jpg) resolve correctly
                 val html = devHtml.readText()
                 val baseUrl = "file://${devDir.absolutePath}/"
-                Log.i(TAG, "DEV MODE: loading from sdcard, base=$baseUrl (${html.length} chars)")
+                Log.i(TAG, "DEV MODE: loading from external files, base=$baseUrl (${html.length} chars)")
                 webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
             } catch (e: Exception) {
-                Log.e(TAG, "DEV MODE: failed to read sdcard HTML, falling back to assets", e)
+                Log.e(TAG, "DEV MODE: failed to read HTML, falling back to assets", e)
                 webView.loadUrl("file:///android_asset/www/index.html")
             }
         } else {
-            Log.i(TAG, "PROD MODE: loading bundled assets")
+            Log.i(TAG, "PROD MODE: loading bundled assets (dev dir: ${devDir.absolutePath})")
             webView.loadUrl("file:///android_asset/www/index.html")
         }
 

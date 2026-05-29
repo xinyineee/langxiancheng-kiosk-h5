@@ -9,7 +9,7 @@
 #   ./adb-debug.sh clean     — 清除sdcard上的开发文件（切回内置版）
 
 DEVICE="172.20.10.2:43241"
-SDCARD_DIR="/sdcard/Download/kiosk"
+DEV_DIR="/sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk"
 KIOSK_PREVIEW="../kiosk-preview"
 APK_PATTERN="app-release-unsigned.apk"
 ADB_CMD="adb -s $DEVICE"
@@ -29,10 +29,10 @@ case $CMD in
     push)
         ensure_connected
         echo "=== Pushing HTML + images to device ==="
-        $ADB_CMD shell "mkdir -p $SDCARD_DIR/images"
-        $ADB_CMD push "$KIOSK_PREVIEW/index.html" "$SDCARD_DIR/"
+        $ADB_CMD shell "mkdir -p $DEV_DIR/images"
+        $ADB_CMD push "$KIOSK_PREVIEW/index.html" "$DEV_DIR/"
         for img in "$KIOSK_PREVIEW/images/"*; do
-            [ -f "$img" ] && $ADB_CMD push "$img" "$SDCARD_DIR/images/"
+            [ -f "$img" ] && $ADB_CMD push "$img" "$DEV_DIR/images/"
         done
         echo "=== Done! Run './adb-debug.sh reload' to restart app ==="
         ;;
@@ -80,13 +80,13 @@ case $CMD in
         ensure_connected
         echo ""
         echo "--- Dev mode check ---"
-        $ADB_CMD shell "ls -la $SDCARD_DIR/index.html 2>/dev/null && echo 'DEV MODE: sdcard HTML exists' || echo 'PROD MODE: will load from APK assets'"
+        $ADB_CMD shell "ls -la $DEV_DIR/index.html 2>/dev/null && echo 'DEV MODE: sdcard HTML exists' || echo 'PROD MODE: will load from APK assets'"
         ;;
 
     clean)
         ensure_connected
         echo "=== Removing dev files from device ==="
-        $ADB_CMD shell "rm -rf $SDCARD_DIR"
+        $ADB_CMD shell "rm -rf $DEV_DIR"
         echo "=== Restarting app (will use bundled assets) ==="
         $ADB_CMD shell am force-stop com.langxiancheng.kiosk
         sleep 0.5
