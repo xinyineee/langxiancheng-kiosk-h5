@@ -277,9 +277,9 @@ class MainActivity : AppCompatActivity() {
             // wakeUpCallback = null → skip wake-up, start ASR directly
             SmSpeechSDK.getInstance().startSemanticRecognizer(
                 15000L,  // 15s timeout
-                null,     // no wake-up
+                null as ISpeechSessionResultCallback.IWakeUpCallback?,
                 object : ISpeechSessionResultCallback.IStreamingSpeechRecognitionCallback {
-                    override fun onPartialResult(partialText: String) {
+                    override fun onPartialResult(partialText: String, direction: Int, translate: Boolean) {
                         runJs("window._asrOnPartial(['${partialText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}'])")
                     }
                     override fun onAsrFinalResult(finalText: String, direction: Int, translate: Boolean) {
