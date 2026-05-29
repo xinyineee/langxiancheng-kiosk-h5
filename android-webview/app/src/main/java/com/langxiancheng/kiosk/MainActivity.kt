@@ -393,12 +393,16 @@ class MainActivity : AppCompatActivity() {
     private val androidRecognitionListener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             androidListening = true
+            Log.i(TAG, "Android ASR ready")
             runJs("window._asrOnStart()")
         }
-        override fun onBeginningOfSpeech() {}
+        override fun onBeginningOfSpeech() { Log.d(TAG, "Android ASR: speech began") }
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() { androidListening = false }
+        override fun onEndOfSpeech() {
+            androidListening = false
+            Log.d(TAG, "Android ASR: speech ended")
+        }
         override fun onError(error: Int) {
             androidListening = false
             val msg = when (error) {
@@ -410,20 +414,24 @@ class MainActivity : AppCompatActivity() {
                 SpeechRecognizer.ERROR_NETWORK -> "network-error"
                 SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network-timeout"
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
+                SpeechRecognizer.ERROR_SERVER -> "server-error"
                 else -> "error-$error"
             }
+            Log.w(TAG, "Android ASR error: $msg ($error)")
             runJs("window._asrOnError('$msg')")
         }
         override fun onResults(results: Bundle?) {
             androidListening = false
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 ?: arrayListOf()
+            Log.i(TAG, "Android ASR results: $matches")
             val json = matches.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }
             runJs("window._asrOnResult([$json])")
         }
         override fun onPartialResults(partialResults: Bundle?) {
             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
+                Log.d(TAG, "Android ASR partial: ${matches.first()}")
                 val json = matches.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }
                 runJs("window._asrOnPartial([$json])")
             }

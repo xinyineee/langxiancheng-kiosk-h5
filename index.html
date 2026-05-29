@@ -989,7 +989,7 @@ window._asrOnError = function(err) {
   isListening = false;
   hideLiveTranscript();
   // SUNMI timeout/error → treat like no-speech, keep auto-restart
-  if (err === 'no-speech' || (err && err.startsWith('sunmi-error'))) {
+  if (err === 'no-speech' || err === 'no-match' || (err && err.startsWith('sunmi-error'))) {
     if (asrAutoRestart) {
       updateASRStatus('listening');
       // retry will be triggered by _asrOnStop -> setTimeout -> startASRListening
