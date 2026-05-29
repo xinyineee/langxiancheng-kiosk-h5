@@ -11,8 +11,8 @@ android {
         applicationId = "com.langxiancheng.kiosk"
         minSdk = 21
         targetSdk = 35
-        versionCode = 7
-        versionName = "2.6.2"
+        versionCode = 8
+        versionName = "2.6.3"
     }
 
     buildTypes {
