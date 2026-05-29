@@ -41,11 +41,11 @@ import com.sm.ai.framework.asr.aidl.result.IContinuationRequestCallback
 import com.sm.ai.framework.asr.sdk.lifecycle.ISpeechSessionLifecycle
 
 /**
- * WebView shell for LangXianCheng Kiosk v2.4
- * ASR: SUNMI Voice SDK (LOCAL→WEB fallback) + Android SpeechRecognizer (last resort)
+ * WebView shell for LangXianCheng Kiosk v2.5
+ * ASR: SUNMI Voice SDK (WEB mode) + Android SpeechRecognizer (fallback)
  *
- * v2.4 changes:
- * - Try LOCAL mode first for instant offline ASR, fallback to WEB if empty results
+ * v2.5 changes:
+ * - Switched to WEB mode for better Chinese recognition accuracy
  * - Auto-restart session in Kotlin (skip HTML round-trip delay)
  * - Precise timing logs for latency diagnosis
  */
@@ -281,16 +281,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun initSunmiSpeechSDK() {
         try {
-            // Start with LOCAL mode for fastest recognition
-            // Will auto-fallback to WEB if LOCAL produces empty results
+            // Use WEB mode for best Chinese recognition accuracy
             val config = InitialConfig("", "", "").apply {
-                asrMode = SmAsrMode.LOCAL
+                asrMode = SmAsrMode.WEB
             }
-            currentAsrMode = "local"
+            currentAsrMode = "web"
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
                     override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK init success (LOCAL mode), using SUNMI ASR engine")
+                        Log.i(TAG, "SUNMI speech SDK init success (WEB mode), using SUNMI ASR engine")
                         sunmiSpeechReady = true
                         activeEngine = "sunmi"
                         handler.post {
