@@ -24,18 +24,20 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
-import com.sunmi.ai.base.sdk.SdkStatusInfo
-import com.sunmi.ai.base.sdk.SdkVersionCallback
-import com.sunmi.ai.base.sdk.SmAIMainFrameworkSDK
-import com.sunmi.ai.base.sdk.ISmSDKStateListener
+// SUNMI AI Base SDK
+import com.sm.ai.framework.base_sdk.ISmSDKStateListener
+import com.sm.ai.framework.main.sdk.SmAIMainFrameworkSDK
+import com.sm.ai.framework.main.sdk.callback.SdkVersionCallback
+import com.sm.ai.framework.main.aidl.SdkStatusInfo
 
-import com.sunmi.speech.sdk.InitialConfig
-import com.sunmi.speech.sdk.SmAsrMode
-import com.sunmi.speech.sdk.SmSpeechSDK
-import com.sunmi.speech.sdk.ISpeechServiceStateListener
-import com.sunmi.speech.sdk.ISpeechSessionResultCallback
-import com.sunmi.speech.sdk.IContinuationRequestCallback
-import com.sunmi.speech.sdk.ISpeechSessionLifecycle
+// SUNMI Voice SDK
+import com.sm.ai.framework.asr.sdk.SmSpeechSDK
+import com.sm.ai.framework.asr.sdk.InitialConfig
+import com.sm.ai.framework.asr.sdk.SmAsrMode
+import com.sm.ai.framework.asr.sdk.ISpeechServiceStateListener
+import com.sm.ai.framework.asr.sdk.result.ISpeechSessionResultCallback
+import com.sm.ai.framework.asr.aidl.result.IContinuationRequestCallback
+import com.sm.ai.framework.asr.sdk.lifecycle.ISpeechSessionLifecycle
 
 /**
  * WebView shell for LangXianCheng Kiosk v2.3
@@ -204,9 +206,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     var speechAvailable = false
                     for (info in statuses) {
-                        if (SdkStatusInfo.SDKName.ABILITY_SDK_SPEECH_SDK_SUNMI_INTERACTION == info.sdkName
-                            && SdkStatusInfo.State.SDK_STATE_NO_UPDATE == info.state
-                        ) {
+                        val name = try { info.sdkName } catch (e: Exception) { null }
+                        val state = try { info.state } catch (e: Exception) { null }
+                        Log.d(TAG, "SUNMI capability: name=$name state=$state")
+                        if (name == "sunmi_speech_interaction" && state == "3") {
                             speechAvailable = true
                             break
                         }
@@ -271,17 +274,16 @@ class MainActivity : AppCompatActivity() {
         if (!sunmiSpeechReady) return
         try {
             sunmiAsrActive = true
-            // No wake-up callback (null) = skip wake-up, start ASR directly
+            // wakeUpCallback = null → skip wake-up, start ASR directly
             SmSpeechSDK.getInstance().startSemanticRecognizer(
                 15000L,  // 15s timeout
                 null,     // no wake-up
                 object : ISpeechSessionResultCallback.IStreamingSpeechRecognitionCallback {
                     override fun onPartialResult(partialText: String) {
-                        runJs("window._asrOnPartial(['${partialText.replace("'", "\\'").replace("\"", "\\\"")}'])")
+                        runJs("window._asrOnPartial(['${partialText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}'])")
                     }
                     override fun onAsrFinalResult(finalText: String, direction: Int, translate: Boolean) {
-                        // Convert to JSON array format for JS
-                        val json = "[\"${finalText.replace("'", "\\'").replace("\"", "\\\"")}\"]"
+                        val json = "[\"${finalText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}\"]"
                         runJs("window._asrOnResult($json)")
                     }
                 },
@@ -290,15 +292,11 @@ class MainActivity : AppCompatActivity() {
                         currentResult: String?,
                         promptText: String?,
                         callback: IContinuationRequestCallback?
-                    ) {
-                        // Not needed for kiosk - ignore
-                    }
+                    ) { /* not needed for kiosk */ }
                     override fun onSemanticResult(
                         nluResult: String?,
                         callback: IContinuationRequestCallback?
-                    ) {
-                        // Semantic result - we only care about ASR text, ignore
-                    }
+                    ) { /* ignore semantic results, only care about ASR text */ }
                     override fun onError(
                         errorCode: String?,
                         callback: IContinuationRequestCallback?
@@ -314,13 +312,9 @@ class MainActivity : AppCompatActivity() {
                     override fun buildLlmSourceLang(): String = ""
                 },
                 object : ISpeechSessionLifecycle {
-                    override fun onSessionReady() {
-                        Log.d(TAG, "SUNMI session ready")
-                    }
+                    override fun onSessionReady() { Log.d(TAG, "SUNMI session ready") }
                     override fun onWakeUpReady() {}
-                    override fun onCaptureStarted() {
-                        runJs("window._asrOnStart()")
-                    }
+                    override fun onCaptureStarted() { runJs("window._asrOnStart()") }
                     override fun onCapturePaused() {}
                     override fun onCaptureResumed() {}
                     override fun onSemanticProcessingStarted() {}
@@ -382,9 +376,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun androidStopListening() {
-        try {
-            androidRecognizer?.stopListening()
-        } catch (e: Exception) {}
+        try { androidRecognizer?.stopListening() } catch (e: Exception) {}
         androidListening = false
     }
 
@@ -396,9 +388,7 @@ class MainActivity : AppCompatActivity() {
         override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {
-            androidListening = false
-        }
+        override fun onEndOfSpeech() { androidListening = false }
         override fun onError(error: Int) {
             androidListening = false
             val msg = when (error) {
@@ -448,9 +438,7 @@ class MainActivity : AppCompatActivity() {
     inner class AsrBridge {
 
         @JavascriptInterface
-        fun getEngine(): String {
-            return activeEngine
-        }
+        fun getEngine(): String = activeEngine
 
         @JavascriptInterface
         fun startListening(lang: String) {
@@ -476,7 +464,8 @@ class MainActivity : AppCompatActivity() {
         fun isSunmiReady(): Boolean = sunmiSpeechReady
 
         @JavascriptInterface
-        fun isAndroidAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+        fun isAndroidAvailable(): Boolean =
+            SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
     }
 
     // ================================================================
@@ -485,11 +474,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun runJs(script: String) {
         handler.post {
-            try {
-                webView.evaluateJavascript(script, null)
-            } catch (e: Exception) {
-                Log.w(TAG, "runJs error", e)
-            }
+            try { webView.evaluateJavascript(script, null) }
+            catch (e: Exception) { Log.w(TAG, "runJs error", e) }
         }
     }
 }
