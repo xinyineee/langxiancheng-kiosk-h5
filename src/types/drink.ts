@@ -22,6 +22,8 @@ export interface Drink {
   colorHex: string
   /** Decorative emoji. */
   emoji: string
+  /** Card image path (e.g., "/images/drink1.jpg"). */
+  image: string
 }
 
 /** Query parameters for the result page URL. */

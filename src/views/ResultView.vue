@@ -11,6 +11,7 @@
     <!-- Valid result display -->
     <div v-else class="result-content">
       <DrinkHero
+        :image="drink!.image"
         :emoji="drink!.emoji"
         :name="drink!.name"
         :english-name="drink!.englishName"

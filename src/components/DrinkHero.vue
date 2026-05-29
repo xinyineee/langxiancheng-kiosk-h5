@@ -1,38 +1,35 @@
 <template>
   <div class="drink-hero">
-    <!-- Emoji/icon display -->
-    <div class="hero-emoji-wrapper" :style="{ backgroundColor: colorHex + '1A' }">
-      <span class="hero-emoji">{{ emoji }}</span>
-    </div>
-
-    <!-- Drink name -->
-    <h1 class="hero-name" :style="{ color: colorHex }">{{ name }}</h1>
-
-    <!-- English name -->
-    <p class="hero-english-name">{{ englishName }}</p>
-
-    <!-- Tagline badge -->
-    <div class="hero-tagline" :style="{ backgroundColor: colorHex + '1A' }">
-      <span :style="{ color: colorHex }">{{ tagline }}</span>
+    <!-- Drink card image (contains name, tagline, illustration) -->
+    <div class="hero-card-wrapper">
+      <img
+        class="hero-card-img"
+        :src="image"
+        :alt="name"
+        loading="eager"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * DrinkHero component — displays the drink's emoji, name, English name, and tagline.
+ * DrinkHero component — displays the drink card image.
+ * The card image itself contains the drink illustration, name, English name, and tagline.
  */
 defineProps<{
-  /** Decorative emoji for the drink. */
-  emoji: string
-  /** Chinese drink name. */
+  /** Path to the drink card image. */
+  image: string
+  /** Chinese drink name (used as alt text). */
   name: string
-  /** English drink name. */
+  /** English drink name (reserved for future use). */
   englishName: string
-  /** Short motto/slogan. */
+  /** Short motto/slogan (reserved for future use). */
   tagline: string
   /** Brand color hex for accent styling. */
   colorHex: string
+  /** Decorative emoji (reserved, not displayed). */
+  emoji: string
 }>()
 </script>
 
@@ -41,44 +38,34 @@ defineProps<{
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 20px;
-  background: #FFFFFF;
-  border-radius: 16px;
-  text-align: center;
+  padding: 20px 16px;
+  background: transparent;
 }
 
-.hero-emoji-wrapper {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16px;
+.hero-card-wrapper {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(255, 107, 26, 0.12);
+  animation: card-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.hero-emoji {
-  font-size: 40px;
+@keyframes card-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.hero-name {
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.3;
-  margin: 0 0 4px;
-}
-
-.hero-english-name {
-  font-size: 14px;
-  color: #999999;
-  margin: 0 0 16px;
-}
-
-.hero-tagline {
-  display: inline-block;
-  padding: 8px 16px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
+.hero-card-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 24px;
 }
 </style>
