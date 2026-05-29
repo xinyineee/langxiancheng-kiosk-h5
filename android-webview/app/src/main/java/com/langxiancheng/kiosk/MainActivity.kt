@@ -25,7 +25,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
-import java.nio.charset.Charsets
 
 // SUNMI AI Base SDK
 import com.sm.ai.framework.base_sdk.ISmSDKStateListener
@@ -127,7 +126,7 @@ class MainActivity : AppCompatActivity() {
                 // Android 11+ blocks loadUrl("file:///sdcard/..."), so read HTML string
                 // and use loadDataWithBaseURL with base URL pointing to sdcard dir
                 // so that relative image paths (images/drink1.jpg) resolve correctly
-                val html = devHtml.readText(Charsets.UTF_8)
+                val html = devHtml.readText()
                 val baseUrl = "file://${devDir.absolutePath}/"
                 Log.i(TAG, "DEV MODE: loading from sdcard, base=$baseUrl (${html.length} chars)")
                 webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
