@@ -1,36 +1,1329 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#FF6B1A" />
-  <meta name="description" content="浪险橙咖啡 — 我们一起浪，一起险，一起成" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>浪险橙 Kiosk v2.2 Preview</title>
+<style>
+  :root {
+    --brand: #FF6B1A;
+    --brand-light: #FF8F4F;
+    --brand-glow: #FF6B1A;
+    --brand-dark: #E55A10;
+    --bg-dark: #0F0B14;
+    --bg-card: rgba(255,255,255,0.035);
+    --bg-card-hover: rgba(255,255,255,0.06);
+    --text-primary: #FFFFFF;
+    --text-secondary: rgba(255,255,255,0.72);
+    --text-muted: rgba(255,255,255,0.42);
+    --border-subtle: rgba(255,255,255,0.06);
+    --border-brand: rgba(255,107,26,0.25);
+    --shadow-glow: 0 0 60px rgba(255,107,26,0.2);
+    --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
 
-  <!-- Open Graph Meta -->
-  <meta property="og:title" content="浪险橙咖啡 · 你的创业口味测试" />
-  <meta property="og:description" content="测测你是哪杯特调？浪险橙为你定制专属咖啡！" />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://cafe.langxiancheng.com" />
-  <meta property="og:image" content="https://cafe.langxiancheng.com/og-image.png" />
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
-  <title>浪险橙咖啡 · 你的创业口味测试</title>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700;800;900&display=swap');
 
-  <!-- Preconnect for performance -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  body {
+    font-family: 'Noto Sans SC', -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-  <!-- GitHub Pages SPA routing: handle redirect from 404.html -->
-  <script>
-    (function() {
-      var redirect = sessionStorage.redirect;
-      delete sessionStorage.redirect;
-      if (redirect && redirect != window.location.href) {
-        history.replaceState(null, null, redirect);
-      }
-    })();
-  </script>
+  #app {
+    width: 100%;
+    max-width: 430px;
+    height: 100vh;
+    max-height: 932px;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-dark);
+  }
+
+  /* Noise texture overlay */
+  #app::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s var(--ease-out-expo);
+  }
+  .screen.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* ========== IDLE SCREEN ========== */
+  .idle-screen {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 30%, rgba(255,107,26,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(255,143,79,0.04) 0%, transparent 60%),
+      var(--bg-dark);
+  }
+  .deco-orbit {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(255,107,26,0.12);
+    animation: orbit-pulse 5s ease-in-out infinite;
+  }
+  .deco-orbit:nth-child(1) { width:300px; height:300px; top:50%; left:50%; transform:translate(-50%,-50%); }
+  .deco-orbit:nth-child(2) { width:420px; height:420px; top:50%; left:50%; transform:translate(-50%,-50%); animation-delay:1.2s; border-color:rgba(255,107,26,0.06); }
+  .deco-orbit:nth-child(3) { width:220px; height:220px; top:50%; left:50%; transform:translate(-50%,-50%); animation-delay:2.4s; border-color:rgba(255,107,26,0.18); }
+  .deco-dot {
+    position: absolute;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.3;
+  }
+  @keyframes orbit-pulse {
+    0%,100% { transform:translate(-50%,-50%) scale(1); opacity:0.4; }
+    50% { transform:translate(-50%,-50%) scale(1.06); opacity:0.9; }
+  }
+  .idle-logo-wrap {
+    position: relative;
+    z-index: 2;
+    animation: breathe-glow 3.5s ease-in-out infinite;
+  }
+  @keyframes breathe-glow {
+    0%,100% { filter: drop-shadow(0 0 24px rgba(255,107,26,0.25)); }
+    50% { filter: drop-shadow(0 0 52px rgba(255,107,26,0.55)); }
+  }
+  .idle-logo {
+    width: 180px; height: 180px;
+    object-fit: contain;
+  }
+  .idle-slogan {
+    position: relative; z-index:2;
+    margin-top: 24px;
+    font-size: 16px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 4px;
+    animation: fade-up 1s var(--ease-out-expo) 0.5s both;
+  }
+  .idle-brand-name {
+    position: relative; z-index:2;
+    margin-top: 8px;
+    font-size: 32px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--brand), #FFD166);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 8px;
+    animation: fade-up 1s var(--ease-out-expo) 0.3s both;
+  }
+  .idle-touch {
+    position: relative; z-index:2;
+    margin-top: 56px;
+    padding: 16px 48px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    border: none;
+    border-radius: 50px;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255,255,255,0.2);
+    animation: fade-up 1s var(--ease-out-expo) 0.8s both;
+    transition: all 0.25s var(--ease-out-expo);
+    position: relative;
+    overflow: hidden;
+  }
+  .idle-touch::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .idle-touch:hover::after { opacity: 1; }
+  .idle-touch:active { transform: scale(0.96); box-shadow: 0 0 30px rgba(255,107,26,0.3); }
+
+  @keyframes fade-up {
+    from { opacity:0; transform:translateY(24px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+
+  /* ========== WELCOME SCREEN ========== */
+  .welcome-screen {
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 20%, rgba(255,107,26,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 20% 90%, rgba(255,143,79,0.04) 0%, transparent 50%),
+      linear-gradient(180deg, #0F0B14 0%, #1A1020 50%, #0F0B14 100%);
+  }
+  .welcome-logo {
+    width: 100px; height: 100px;
+    object-fit: contain;
+    margin-bottom: 20px;
+    animation: scale-in 0.7s var(--ease-spring) both;
+  }
+  .welcome-title {
+    font-size: 30px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--brand), #FFD166);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fade-up 0.6s var(--ease-out-expo) 0.2s both;
+    letter-spacing: 2px;
+  }
+  .welcome-sub {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    font-weight: 300;
+    animation: fade-up 0.6s var(--ease-out-expo) 0.35s both;
+  }
+  .features {
+    margin-top: 32px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .feature-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 18px;
+    transition: all 0.3s var(--ease-out-expo);
+    backdrop-filter: blur(10px);
+  }
+  .feature-row:nth-child(1) { animation: slide-left 0.6s var(--ease-out-expo) 0.5s both; }
+  .feature-row:nth-child(2) { animation: slide-left 0.6s var(--ease-out-expo) 0.65s both; }
+  .feature-row:nth-child(3) { animation: slide-left 0.6s var(--ease-out-expo) 0.8s both; }
+  .feature-row:hover { background: var(--bg-card-hover); border-color: var(--border-brand); }
+  @keyframes slide-left {
+    from { opacity:0; transform:translateX(-36px); }
+    to { opacity:1; transform:translateX(0); }
+  }
+  .feature-icon {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    display: flex; align-items:center; justify-content:center;
+    font-size: 22px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 16px rgba(255,107,26,0.25);
+  }
+  .feature-text { flex:1; }
+  .feature-title { font-size: 16px; font-weight: 600; letter-spacing: 0.5px; }
+  .feature-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; font-weight: 300; }
+
+  .start-btn {
+    margin-top: 36px;
+    width: 100%;
+    max-width: 280px;
+    padding: 17px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    border: none;
+    border-radius: 50px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    cursor: pointer;
+    box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+    animation: fade-up 0.6s var(--ease-out-expo) 1s both;
+    transition: all 0.25s var(--ease-out-expo);
+    position: relative;
+    overflow: hidden;
+  }
+  .start-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.2) 0%, transparent 60%);
+    opacity: 0.6;
+  }
+  .start-btn:active { transform: scale(0.96); box-shadow: 0 0 30px rgba(255,107,26,0.25); }
+
+  /* ========== QUESTION SCREEN ========== */
+  .question-screen {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 10%, rgba(255,107,26,0.05) 0%, transparent 60%),
+      linear-gradient(180deg, #0F0B14 0%, #140E1C 100%);
+    justify-content: flex-start;
+    padding-top: 56px;
+  }
+  .q-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .q-progress-wrap {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    margin: 0 14px;
+    overflow: hidden;
+    position: relative;
+  }
+  .q-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brand), #FFD166);
+    border-radius: 3px;
+    transition: width 0.6s var(--ease-out-expo);
+    position: relative;
+  }
+  .q-progress-bar::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 20px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+    border-radius: 3px;
+  }
+  .q-counter {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 36px;
+    text-align: center;
+  }
+  .voice-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items:center; justify-content:center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .voice-btn:hover { background: rgba(255,107,26,0.1); border-color: var(--border-brand); }
+  .voice-btn:active { background: rgba(255,107,26,0.15); transform: scale(0.92); }
+  .voice-btn.speaking { animation: voice-pulse 1.2s ease infinite; border-color: var(--brand); color: var(--brand); background: rgba(255,107,26,0.1); }
+  @keyframes voice-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,107,26,0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(255,107,26,0); }
+  }
+
+  /* ASR mic button */
+  .asr-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items:center; justify-content:center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    margin-left: 8px;
+    position: relative;
+  }
+  .asr-btn:hover { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #22c55e; }
+  .asr-btn.listening {
+    background: rgba(34,197,94,0.15);
+    border-color: #22c55e;
+    color: #22c55e;
+    animation: mic-pulse 1.2s ease infinite;
+  }
+  .asr-btn.has-result {
+    background: rgba(34,197,94,0.2);
+    border-color: #22c55e;
+    color: #22c55e;
+  }
+  @keyframes mic-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+  }
+
+  .q-badge {
+    display: inline-block;
+    padding: 6px 18px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 16px rgba(255,107,26,0.2);
+  }
+  .q-text {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+    margin-bottom: 8px;
+    animation: fade-up 0.5s var(--ease-out-expo) both;
+    letter-spacing: 0.5px;
+  }
+  .q-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    animation: fade-up 0.5s var(--ease-out-expo) 0.1s both;
+    font-weight: 300;
+  }
+
+  .options {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .option-card {
+    width: 100%;
+    padding: 20px 22px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.3s var(--ease-out-expo);
+    animation: fade-up 0.5s var(--ease-out-expo) both;
+    position: relative;
+    overflow: hidden;
+  }
+  .option-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,107,26,0.05), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .option-card:nth-child(1) { animation-delay: 0.1s; }
+  .option-card:nth-child(2) { animation-delay: 0.2s; }
+  .option-card:nth-child(3) { animation-delay: 0.3s; }
+  .option-card:nth-child(4) { animation-delay: 0.4s; }
+  .option-card:hover { border-color: var(--border-brand); background: var(--bg-card-hover); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+  .option-card:hover::before { opacity: 1; }
+  .option-card:active { transform: scale(0.98); }
+  .option-card.selected {
+    background: rgba(255,107,26,0.08);
+    border-color: var(--brand);
+    box-shadow: 0 4px 24px rgba(255,107,26,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .option-label {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    display: flex; align-items:center; justify-content:center;
+    font-size: 16px; font-weight: 700;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(255,107,26,0.25);
+    position: relative;
+    z-index: 1;
+  }
+  .option-card.selected .option-label {
+    background: var(--brand);
+    box-shadow: 0 0 20px rgba(255,107,26,0.4);
+  }
+  .option-text { font-size: 15px; font-weight: 500; line-height: 1.45; position: relative; z-index: 1; }
+
+  .q-timer {
+    margin-top: 20px;
+    padding: 12px 28px;
+    background: rgba(255,59,48,0.1);
+    border: 1px solid rgba(255,59,48,0.2);
+    border-radius: 14px;
+    font-size: 14px;
+    color: #FF6B6B;
+    animation: fade-up 0.3s var(--ease-out-expo) both;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ASR result toast */
+  .asr-toast {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    background: rgba(34,197,94,0.15);
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 16px;
+    font-size: 14px;
+    color: #22c55e;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .asr-toast.visible { opacity: 1; }
+  .asr-toast.error {
+    background: rgba(255,59,48,0.12);
+    border-color: rgba(255,59,48,0.25);
+    color: #FF6B6B;
+  }
+
+  /* ========== RESULT SCREEN ========== */
+  .result-screen {
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 15%, rgba(255,107,26,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 80% 90%, rgba(255,143,79,0.04) 0%, transparent 50%),
+      linear-gradient(180deg, #0F0B14 0%, #1A1020 40%, #0F0B14 100%);
+    justify-content: flex-start;
+    padding-top: 44px;
+    overflow-y: auto;
+  }
+  .result-header {
+    text-align: center;
+    margin-bottom: 20px;
+    animation: fade-up 0.7s var(--ease-out-expo) both;
+  }
+  .result-title {
+    font-size: 22px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--brand), #FFD166);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 2px;
+  }
+  .result-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 300;
+    letter-spacing: 2px;
+  }
+
+  .drink-image-card {
+    position: relative;
+    width: 280px;
+    border-radius: 24px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    animation: scale-in 0.8s var(--ease-spring) 0.2s both;
+    background: transparent;
+  }
+  .drink-image-card img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 24px;
+    transition: opacity 0.5s ease;
+  }
+  .drink-image-card.img-loading img {
+    opacity: 0;
+  }
+  .drink-image-card.img-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 2;
+  }
+  @keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+  .drink-image-card.img-error {
+    min-height: 200px;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .drink-image-card.img-error::after {
+    content: '☕';
+    font-size: 60px;
+    opacity: 0.5;
+  }
+
+  .heart-card {
+    width: 100%;
+    padding: 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 22px;
+    text-align: center;
+    margin-top: 24px;
+    animation: fade-up 0.6s var(--ease-out-expo) 0.6s both;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+  }
+  .heart-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--brand), transparent);
+    opacity: 0.5;
+  }
+  .heart-copy {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--text-secondary);
+    font-weight: 300;
+    letter-spacing: 0.3px;
+  }
+  .heart-attribution {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-weight: 300;
+  }
+
+  .result-actions {
+    margin-top: 28px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: fade-up 0.6s var(--ease-out-expo) 0.8s both;
+  }
+  .result-btn {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out-expo);
+    letter-spacing: 1px;
+  }
+  .result-btn:active { transform: scale(0.97); }
+  .result-btn.primary {
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    color: #fff;
+    box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .result-btn.primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 60%);
+    opacity: 0.5;
+  }
+  .result-btn.secondary {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .result-btn.secondary:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
+
+  /* ========== LOADING ========== */
+  .loading-screen {
+    background: var(--bg-dark);
+  }
+  .loading-dots {
+    display: flex;
+    gap: 10px;
+  }
+  .loading-dots span {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--brand);
+    animation: dot-bounce 1.4s ease infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot-bounce {
+    0%,80%,100% { transform: scale(0.5); opacity: 0.3; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* ========== ASR Indicator ========== */
+
+  /* ========== PARTICLES ========== */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.15;
+    pointer-events: none;
+    animation: float-particle 8s ease-in-out infinite;
+  }
+  @keyframes float-particle {
+    0%,100% { transform: translateY(0) scale(1); opacity: 0.15; }
+    50% { transform: translateY(-20px) scale(1.2); opacity: 0.3; }
+  }
+
+  /* Live transcript (ASR interim results) */
+  .live-transcript {
+    position: fixed;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(34,197,94,0.4);
+    border-radius: 24px;
+    font-size: 16px;
+    color: #86efac;
+    z-index: 300;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    font-weight: 500;
+    max-width: 320px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(8px);
+  }
+  .live-transcript.visible { opacity: 1; }
+
+  /* ASR retry state */
+  .asr-btn.retry {
+    background: rgba(251,146,60,0.15);
+    border-color: #fb923c;
+    color: #fb923c;
+    animation: mic-pulse 0.8s ease 2;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 0; }
+</style>
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.ts"></script>
+
+<div id="app">
+  <!-- Floating particles (added by JS) -->
+
+  <!-- ASR Toast -->
+  <div class="asr-toast" id="asrToast"></div>
+
+  <!-- Screen: Idle -->
+  <div class="screen active idle-screen" id="screenIdle">
+    <div class="deco-orbit"></div>
+    <div class="deco-orbit"></div>
+    <div class="deco-orbit"></div>
+    <div class="idle-logo-wrap">
+      <img src="images/logo.svg" class="idle-logo" alt="浪险橙">
+    </div>
+    <div class="idle-brand-name">浪险橙</div>
+    <p class="idle-slogan">我们一起浪，一起险，一起成</p>
+    <button class="idle-touch" onclick="goWelcome()">触摸开始</button>
+  </div>
+
+  <!-- Screen: Welcome -->
+  <div class="screen welcome-screen" id="screenWelcome">
+    <img src="images/logo.svg" class="welcome-logo" alt="浪险橙">
+    <div class="welcome-title">创业人格测试</div>
+    <p class="welcome-sub">30秒发现你的前行饮品</p>
+    <div class="features">
+      <div class="feature-row">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-text">
+          <div class="feature-title">5道趣味题</div>
+          <div class="feature-desc">每题10秒，选择最符合你的答案</div>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-icon">☕</div>
+        <div class="feature-text">
+          <div class="feature-title">专属饮品推荐</div>
+          <div class="feature-desc">基于你的人格匹配特调饮品</div>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-icon">📶</div>
+        <div class="feature-text">
+          <div class="feature-title">NFC 一碰分享</div>
+          <div class="feature-desc">触碰即可保存你的测试结果</div>
+        </div>
+      </div>
+    </div>
+    <button class="start-btn" onclick="startTest()">开始测试</button>
+  </div>
+
+  <!-- Screen: Question -->
+  <div class="screen question-screen" id="screenQuestion">
+    <div class="q-header">
+      <span class="q-counter" id="qCounter">1/5</span>
+      <div class="q-progress-wrap">
+        <div class="q-progress-bar" id="qProgressBar" style="width:20%"></div>
+      </div>
+      <button class="asr-btn" id="asrBtn" onclick="toggleASR()" title="语音回答">🎤</button>
+    </div>
+    <div class="q-badge" id="qBadge">第1题</div>
+    <div class="q-text" id="qText"></div>
+    <p class="q-hint" id="qHint">选择最符合你此刻状态的答案，或直接说出选项</p>
+    <div class="options" id="qOptions"></div>
+  </div>
+
+  <!-- Screen: Loading -->
+  <div class="screen loading-screen" id="screenLoading">
+    <div class="loading-dots">
+      <span></span><span></span><span></span>
+    </div>
+    <p style="margin-top:24px;color:var(--text-secondary);font-size:14px;font-weight:300">正在为你匹配饮品…</p>
+  </div>
+
+  <!-- Screen: Result -->
+  <div class="screen result-screen" id="screenResult">
+    <div class="result-header">
+      <div class="result-title">你的前行饮品</div>
+      <p class="result-subtitle">—— 浪险橙咖啡</p>
+    </div>
+    <div class="drink-image-card" id="drinkImageCard">
+      <img id="resultImg" src="" alt="饮品" onerror="this.style.display='none'; document.getElementById('drinkImageCard').classList.add('img-error');">
+    </div>
+    <div class="heart-card">
+      <p class="heart-copy" id="resultHeartCopy"></p>
+      <p class="heart-attribution">— 浪险橙咖啡</p>
+    </div>
+    <div class="result-actions">
+      <button class="result-btn secondary" onclick="restart()">🔄 重新测试</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== DATA ====================
+const drinks = [
+  {
+    id: 'D1', name: '启程·梨想云', tagline: '每天都是新的起跑线',
+    heartCopy: '每一个起点，都藏着你最好的可能。今天，就是你的新起跑线。',
+    img: 'images/drink1.jpg'
+  },
+  {
+    id: 'D2', name: '探路·莓抹思慕雪', tagline: '创业初期的复杂滋味，但值得',
+    heartCopy: '路不是直的，味道也不是简单的。但复杂里，藏着最真实的你。',
+    img: 'images/drink2.jpg'
+  },
+  {
+    id: 'D3', name: '拼了·开心拿铁', tagline: '拼这一次，不问结果',
+    heartCopy: '不是每次拼搏都有结果，但每次拼搏都有意义。这一杯，献给此刻的你。',
+    img: 'images/drink3.jpg'
+  },
+  {
+    id: 'D4', name: '商米橙·破晓', tagline: '从混沌到清晰，创业的第一缕光',
+    heartCopy: '混乱之后，清晨终会来临。你已经走过最暗的那段路了。',
+    img: 'images/drink4.jpg'
+  },
+  {
+    id: 'D5', name: '桂在路上·冷萃', tagline: '路还长，但已经闻到桂花香',
+    heartCopy: '不用急，慢慢来。走得稳的人，最终都能闻到桂花香。',
+    img: 'images/drink5.jpg'
+  },
+  {
+    id: 'D6', name: '上岸·奶砖拿铁', tagline: '熬过层层，开心上岸，这一杯，值得庆祝',
+    heartCopy: '熬过来了。真的熬过来了。这一杯，是你给自己最好的礼物。',
+    img: 'images/drink6.jpg'
+  }
+];
+
+const questions = [
+  {
+    text: '面对一个全新的挑战，你第一反应是？',
+    options: [
+      { text: '兴奋！马上查资料研究', scores: [3,2,1,2,0,1] },
+      { text: '先想想最坏的情况', scores: [0,1,2,1,3,2] },
+      { text: '找朋友聊聊再说', scores: [1,3,1,0,2,0] },
+      { text: '直接开干，边做边调', scores: [2,0,3,3,1,3] }
+    ]
+  },
+  {
+    text: '创业路上最不能缺的是什么？',
+    options: [
+      { text: '清晰的商业计划', scores: [3,1,1,2,2,0] },
+      { text: '一群靠谱的伙伴', scores: [0,3,2,1,1,2] },
+      { text: '死碰到底的执行力', scores: [1,0,3,3,3,3] },
+      { text: '发现别人看不到的机会', scores: [2,3,0,0,0,1] }
+    ]
+  },
+  {
+    text: '如果今天失败了，明天你会？',
+    options: [
+      { text: '复盘一下哪里可以做得更好', scores: [1,2,2,1,3,2] },
+      { text: '换个方向，换种方式再来', scores: [3,3,1,2,0,1] },
+      { text: '休息一天，恢复状态继续', scores: [0,0,3,0,2,3] },
+      { text: '根本不会想失败的事', scores: [2,1,0,3,1,0] }
+    ]
+  },
+  {
+    text: '你更想和哪种类型的人一起创业？',
+    options: [
+      { text: '有远见、敢做梦的理想派', scores: [3,2,0,2,0,1] },
+      { text: '擅长落地、快速执行的实干派', scores: [1,1,3,3,3,2] },
+      { text: '懂用户、会讲故事的增长派', scores: [0,3,1,0,1,0] },
+      { text: '默默做事、稳扎稳打的技术派', scores: [2,0,2,1,3,3] }
+    ]
+  },
+  {
+    text: '你觉得成功的创业者最像什么？',
+    options: [
+      { text: '灯塔 — 为大家指明方向', scores: [3,2,0,3,0,0] },
+      { text: '探险家 — 永远在发现新大陆', scores: [2,3,1,0,1,1] },
+      { text: '马拉松选手 — 跑赢的是耐力', scores: [0,0,3,0,3,3] },
+      { text: '炼金术士 — 化平凡为神奇', scores: [1,3,2,2,1,2] }
+    ]
+  }
+];
+
+// ==================== STATE ====================
+let currentQ = 0;
+let scores = [0, 0, 0, 0, 0, 0];
+let timerInterval = null;
+let timerLeft = 10;
+
+// ==================== TTS (stub - TTS removed, callbacks still work) ====================
+let isSpeaking = false;
+
+function speak(text, onEnd) {
+  // TTS removed per user request - just fire callback immediately
+  if (onEnd) setTimeout(onEnd, 300);
+}
+
+function stopTTS() {
+  isSpeaking = false;
+}
+
+function speakResult() {
+  // TTS removed - no-op
+}
+
+// ==================== ASR (Auto-listen mode) ====================
+let asrSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+let asrRecognition = null;
+let isListening = false;
+let asrAutoRestart = false;   // whether to auto-restart after end
+let asrRetryCount = 0;
+const ASR_MAX_RETRY = 3;
+
+function initASR() {
+  if (!asrSupported) return;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  asrRecognition = new SpeechRecognition();
+  asrRecognition.lang = 'zh-CN';
+  asrRecognition.continuous = false;
+  asrRecognition.interimResults = true;
+  asrRecognition.maxAlternatives = 5;
+
+  asrRecognition.onstart = () => {
+    isListening = true;
+    updateASRStatus('listening');
+  };
+
+  asrRecognition.onend = () => {
+    isListening = false;
+    // Auto restart if still on question screen and no answer yet
+    if (asrAutoRestart && document.getElementById('screenQuestion').classList.contains('active')) {
+      setTimeout(() => {
+        if (asrAutoRestart && !isListening) {
+          startASRListening();
+        }
+      }, 400);
+    } else {
+      updateASRStatus('idle');
+    }
+  };
+
+  asrRecognition.onresult = (event) => {
+    const results = event.results;
+    if (results.length > 0) {
+      const lastResult = results[results.length - 1];
+      const transcript = lastResult[0].transcript.trim();
+
+      if (!lastResult.isFinal) {
+        // Show interim result as live feedback
+        showLiveTranscript(transcript);
+        return;
+      }
+
+      // Final result
+      hideLiveTranscript();
+      asrRetryCount = 0;
+
+      // Try all alternatives
+      let choice = null;
+      for (let alt = 0; alt < lastResult.length && choice === null; alt++) {
+        choice = parseASRChoice(lastResult[alt].transcript.trim());
+      }
+
+      if (choice !== null) {
+        asrAutoRestart = false;
+        updateASRStatus('success', ['A','B','C','D'][choice]);
+        setTimeout(() => {
+          updateASRStatus('idle');
+          selectOption(choice);
+        }, 600);
+      } else {
+        // Not recognized - show what we heard, auto retry
+        updateASRStatus('retry', transcript);
+        asrRetryCount++;
+        if (asrRetryCount <= ASR_MAX_RETRY) {
+          // auto restart
+        }
+        // asrAutoRestart stays true so onend will restart
+      }
+    }
+  };
+
+  asrRecognition.onerror = (event) => {
+    isListening = false;
+    hideLiveTranscript();
+    if (event.error === 'no-speech') {
+      // Silently restart on no-speech
+      updateASRStatus('listening');
+    } else if (event.error === 'not-allowed') {
+      asrAutoRestart = false;
+      updateASRStatus('denied');
+    } else if (event.error === 'aborted') {
+      // intentional stop
+    } else {
+      updateASRStatus('error', event.error);
+    }
+  };
+}
+
+function startASRListening() {
+  if (!asrSupported || !asrRecognition) return;
+  try {
+    asrRecognition.start();
+  } catch(e) {
+    // already started or other error, ignore
+  }
+}
+
+function stopASRListening() {
+  asrAutoRestart = false;
+  if (asrRecognition && isListening) {
+    try { asrRecognition.stop(); } catch(e) {}
+  }
+  isListening = false;
+  hideLiveTranscript();
+  updateASRStatus('idle');
+}
+
+function enableAutoASR() {
+  if (!asrSupported) return;
+  if (!asrRecognition) initASR();
+  asrAutoRestart = true;
+  asrRetryCount = 0;
+  startASRListening();
+}
+
+function toggleASR() {
+  if (!asrSupported) {
+    showASRToast('当前浏览器不支持语音识别', true);
+    return;
+  }
+  if (isListening || asrAutoRestart) {
+    stopASRListening();
+  } else {
+    enableAutoASR();
+  }
+}
+
+// ---- ASR UI helpers ----
+function updateASRStatus(state, extra) {
+  const btn = document.getElementById('asrBtn');
+  const hint = document.getElementById('qHint');
+  btn.className = 'asr-btn';
+
+  if (state === 'listening') {
+    btn.classList.add('listening');
+    if (hint) hint.textContent = '🎤 正在听... 直接说出你的选择';
+    showASRToast('', false, false);  // clear
+  } else if (state === 'success') {
+    btn.classList.add('has-result');
+    showASRToast('✅ 已选 ' + extra, false);
+    if (hint) hint.textContent = '✅ 已识别：' + extra;
+  } else if (state === 'retry') {
+    btn.classList.add('retry');
+    const msg = extra ? '"' + extra + '" 未匹配，再说一次' : '未识别，再说一次';
+    showASRToast('🔄 ' + msg, true);
+    if (hint) hint.textContent = '🔄 未识别，请再说一遍';
+  } else if (state === 'denied') {
+    showASRToast('麦克风权限被拒绝，请在浏览器设置中允许', true);
+    if (hint) hint.textContent = '请允许麦克风权限后刷新';
+  } else if (state === 'error') {
+    showASRToast('语音识别出错: ' + (extra||''), true);
+  } else {
+    // idle
+    if (hint) hint.textContent = '选择最符合你此刻状态的答案，或直接说出选项';
+  }
+}
+
+let liveTranscriptEl = null;
+function showLiveTranscript(text) {
+  if (!liveTranscriptEl) {
+    liveTranscriptEl = document.createElement('div');
+    liveTranscriptEl.className = 'live-transcript';
+    document.getElementById('app').appendChild(liveTranscriptEl);
+  }
+  liveTranscriptEl.textContent = '🎤 ' + text + '...';
+  liveTranscriptEl.classList.add('visible');
+}
+function hideLiveTranscript() {
+  if (liveTranscriptEl) liveTranscriptEl.classList.remove('visible');
+}
+
+function showASRToast(msg, isError, autoHide=true) {
+  const toast = document.getElementById('asrToast');
+  if (!msg) { toast.classList.remove('visible'); return; }
+  toast.textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('visible');
+  if (autoHide) {
+    setTimeout(() => { toast.classList.remove('visible'); }, isError ? 3000 : 2000);
+  }
+}
+
+function parseASRChoice(text) {
+  text = text.toLowerCase().replace(/\s/g, '');
+  if (text.includes('a') || text.includes('浪') || text.includes('一') || text.includes('1') || text.includes('甲') || text.includes('第一')) return 0;
+  if (text.includes('b') || text.includes('险') || text.includes('二') || text.includes('2') || text.includes('乙') || text.includes('第二')) return 1;
+  if (text.includes('c') || text.includes('成') || text.includes('三') || text.includes('3') || text.includes('丙') || text.includes('第三')) return 2;
+  if (text.includes('d') || text.includes('橙') || text.includes('四') || text.includes('4') || text.includes('丁') || text.includes('第四')) return 3;
+
+  // Match question option text content (fuzzy substring)
+  const q = questions[currentQ];
+  if (!q) return null;
+  for (let i = 0; i < q.options.length; i++) {
+    const optText = q.options[i].text;
+    for (let len = 4; len >= 2; len--) {
+      for (let start = 0; start <= optText.length - len; start++) {
+        const substr = optText.substring(start, start + len);
+        if (text.includes(substr)) return i;
+      }
+    }
+  }
+  return null;
+}
+
+// ==================== NAVIGATION ====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goWelcome() {
+  showScreen('screenWelcome');
+}
+
+function startTest() {
+  currentQ = 0;
+  scores = [0, 0, 0, 0, 0, 0];
+  showScreen('screenQuestion');
+  renderQuestion();
+}
+
+function restart() {
+  stopASRListening();
+  showScreen('screenIdle');
+}
+
+// ==================== QUESTION ====================
+function renderQuestion() {
+  if (currentQ >= questions.length) {
+    finishTest();
+    return;
+  }
+  const q = questions[currentQ];
+  const num = currentQ + 1;
+
+  document.getElementById('qCounter').textContent = num + '/5';
+  document.getElementById('qProgressBar').style.width = (num / 5 * 100) + '%';
+  document.getElementById('qBadge').textContent = '第' + num + '题';
+
+  const qText = document.getElementById('qText');
+  qText.style.animation = 'none';
+  qText.offsetHeight;
+  qText.style.animation = 'fade-up 0.5s var(--ease-out-expo) both';
+  qText.textContent = q.text;
+
+  const optsEl = document.getElementById('qOptions');
+  optsEl.innerHTML = '';
+  const labels = ['A', 'B', 'C', 'D'];
+  q.options.forEach((opt, i) => {
+    const card = document.createElement('div');
+    card.className = 'option-card';
+    card.style.animation = 'none';
+    card.offsetHeight;
+    card.style.animation = 'fade-up 0.5s var(--ease-out-expo) ' + (0.1 + i * 0.1) + 's both';
+    card.innerHTML = '<div class="option-label">' + labels[i] + '</div><div class="option-text">' + opt.text + '</div>';
+    card.onclick = () => selectOption(i);
+    optsEl.appendChild(card);
+  });
+
+  startTimer();
+  // Auto-start ASR listening when question is shown
+  enableAutoASR();
+}
+
+function speakQuestion() {
+  const q = questions[currentQ];
+  const labels = ['A', 'B', 'C', 'D'];
+  let text = q.text + '。';
+  q.options.forEach((opt, i) => {
+    text += labels[i] + '，' + opt.text + '。';
+  });
+  speak(text);
+}
+
+function selectOption(index) {
+  stopTTS();
+  if (isListening && asrRecognition) {
+    asrRecognition.stop();
+    isListening = false;
+    document.getElementById('asrBtn').classList.remove('listening');
+  }
+  clearInterval(timerInterval);
+
+  const q = questions[currentQ];
+  const opt = q.options[index];
+  opt.scores.forEach((s, i) => { scores[i] += s; });
+
+  const cards = document.querySelectorAll('.option-card');
+  cards.forEach((c, i) => {
+    if (i === index) c.classList.add('selected');
+    c.style.pointerEvents = 'none';
+  });
+
+  const labels = ['A', 'B', 'C', 'D'];
+  // TTS removed - move to next question after short animation pause
+  setTimeout(() => {
+    currentQ++;
+    renderQuestion();
+  }, 600);
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerLeft = 10;
+  const oldTimer = document.querySelector('.q-timer');
+  if (oldTimer) oldTimer.remove();
+
+  timerInterval = setInterval(() => {
+    timerLeft--;
+    if (timerLeft <= 3) {
+      let timerEl = document.querySelector('.q-timer');
+      if (!timerEl) {
+        timerEl = document.createElement('div');
+        timerEl.className = 'q-timer';
+        document.getElementById('qOptions').after(timerEl);
+      }
+      timerEl.innerHTML = '⏰ 还有 ' + timerLeft + ' 秒';
+    }
+    if (timerLeft <= 0) {
+      clearInterval(timerInterval);
+      currentQ++;
+      renderQuestion();
+    }
+  }, 1000);
+}
+
+// ==================== RESULT ====================
+function finishTest() {
+  stopASRListening();
+  showScreen('screenLoading');
+
+  let maxScore = -1;
+  let winnerIdx = 0;
+  scores.forEach((s, i) => {
+    if (s > maxScore || (s === maxScore && i > winnerIdx)) {
+      maxScore = s;
+      winnerIdx = i;
+    }
+  });
+
+    setTimeout(() => {
+    const drink = drinks[winnerIdx];
+    const imgEl = document.getElementById('resultImg');
+    const cardEl = document.getElementById('drinkImageCard');
+
+    document.getElementById('resultHeartCopy').textContent = drink.heartCopy;
+
+    // Preload image before showing result screen
+    imgEl.style.display = '';
+    cardEl.classList.remove('img-error');
+    cardEl.classList.add('img-loading');
+
+    const preloadImg = new Image();
+    preloadImg.onload = function() {
+      imgEl.src = drink.img;
+      cardEl.classList.remove('img-loading');
+      showScreen('screenResult');
+    };
+    preloadImg.onerror = function() {
+      imgEl.style.display = 'none';
+      cardEl.classList.remove('img-loading');
+      cardEl.classList.add('img-error');
+      showScreen('screenResult');
+    };
+    preloadImg.src = drink.img;
+  }, 1800);
+}
+
+function speakResult() {
+  // TTS removed - no-op
+}
+
+// ==================== INIT ====================
+// Add floating particles
+document.addEventListener('DOMContentLoaded', () => {
+  const app = document.getElementById('app');
+  for (let i = 0; i < 6; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.width = (2 + Math.random() * 4) + 'px';
+    p.style.height = p.style.width;
+    p.style.left = (10 + Math.random() * 80) + '%';
+    p.style.top = (10 + Math.random() * 80) + '%';
+    p.style.animationDelay = (Math.random() * 5) + 's';
+    p.style.animationDuration = (6 + Math.random() * 6) + 's';
+    app.appendChild(p);
+  }
+
+  // Init ASR on load
+  if (asrSupported) {
+    initASR();
+  }
+});
+</script>
 </body>
 </html>
