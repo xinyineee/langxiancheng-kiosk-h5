@@ -249,8 +249,9 @@ class MainActivity : AppCompatActivity() {
                         // Still use Android SpeechRecognizer as primary engine
                         // SUNMI SDK reserved for when LOCAL mode works on this device
                         activeEngine = "android"
-                        androidStartListening("zh-CN")
-                        runJs("window._asrOnEngineReady('android', '')")
+                        handler.post {
+                            runJs("window._asrOnEngineReady('android', '')")
+                        }
                     }
                     override fun onInitFail(errorCode: String) {
                         Log.w(TAG, "SUNMI speech SDK init fail: $errorCode, using Android ASR")
