@@ -114,9 +114,9 @@ class MainActivity : AppCompatActivity() {
 
         // Dev mode: load from app's external files dir if index.html exists there
         // Path: /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/index.html
-        // Push command: adb push index.html /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/
+        // Push: adb push index.html /sdcard/Android/data/com.langxiancheng.kiosk/files/kiosk/
         // No permissions needed on Android 11+ and adb can write here directly
-        val devDir = File(externalCacheDir, "kiosk")
+        val devDir = File(getExternalFilesDir(null), "kiosk")
         val devHtml = File(devDir, "index.html")
         if (devDir.exists() && devHtml.exists()) {
             try {
