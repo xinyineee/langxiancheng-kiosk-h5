@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.nio.charset.Charsets
 
 // SUNMI AI Base SDK
 import com.sm.ai.framework.base_sdk.ISmSDKStateListener
@@ -95,10 +96,14 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             allowFileAccess = true
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = true
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
             javaScriptCanOpenWindowsAutomatically = false
         }
+
+        WebView.setWebContentsDebuggingEnabled(true)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
@@ -112,14 +117,24 @@ class MainActivity : AppCompatActivity() {
         // Dev mode: load from /sdcard/Download/kiosk/ if index.html exists there
         // This enables rapid iteration: adb push HTML+images → restart app → instant update
         // No APK rebuild needed!
-        val devHtml = File(
+        val devDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "kiosk/index.html"
+            "kiosk"
         )
-        if (devHtml.exists()) {
-            val url = "file://${devHtml.absolutePath}"
-            Log.i(TAG, "DEV MODE: loading $url")
-            webView.loadUrl(url)
+        val devHtml = File(devDir, "index.html")
+        if (devDir.exists() && devHtml.exists()) {
+            try {
+                // Android 11+ blocks loadUrl("file:///sdcard/..."), so read HTML string
+                // and use loadDataWithBaseURL with base URL pointing to sdcard dir
+                // so that relative image paths (images/drink1.jpg) resolve correctly
+                val html = devHtml.readText(Charsets.UTF_8)
+                val baseUrl = "file://${devDir.absolutePath}/"
+                Log.i(TAG, "DEV MODE: loading from sdcard, base=$baseUrl (${html.length} chars)")
+                webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
+            } catch (e: Exception) {
+                Log.e(TAG, "DEV MODE: failed to read sdcard HTML, falling back to assets", e)
+                webView.loadUrl("file:///android_asset/www/index.html")
+            }
         } else {
             Log.i(TAG, "PROD MODE: loading bundled assets")
             webView.loadUrl("file:///android_asset/www/index.html")
@@ -261,13 +276,11 @@ class MainActivity : AppCompatActivity() {
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
                     override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK init success (reserved for future use)")
+                        Log.i(TAG, "SUNMI speech SDK init success, using SUNMI ASR engine")
                         sunmiSpeechReady = true
-                        // Still use Android SpeechRecognizer as primary engine
-                        // SUNMI SDK reserved for when LOCAL mode works on this device
-                        activeEngine = "android"
+                        activeEngine = "sunmi"
                         handler.post {
-                            runJs("window._asrOnEngineReady('android', '')")
+                            runJs("window._asrOnEngineReady('sunmi', '')")
                         }
                     }
                     override fun onInitFail(errorCode: String) {
@@ -480,7 +493,13 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 Log.i(TAG, "JSBridge startListening, engine=$activeEngine, lang=$lang")
                 when (activeEngine) {
-                    "sunmi" -> sunmiStartListening(lang)
+                    "sunmi" -> {
+                        if (sunmiSpeechReady) sunmiStartListening(lang)
+                        else {
+                            Log.w(TAG, "SUNMI not ready, falling back to Android")
+                            androidStartListening(lang)
+                        }
+                    }
                     "android" -> androidStartListening(lang)
                     else -> runJs("window._asrOnError('no-engine-ready')")
                 }
