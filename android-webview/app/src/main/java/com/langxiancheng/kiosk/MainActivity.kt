@@ -274,6 +274,8 @@ class MainActivity : AppCompatActivity() {
         if (!sunmiSpeechReady) return
         try {
             sunmiAsrActive = true
+            // Force LOCAL mode to avoid network timeout on kiosk devices
+            SmSpeechSDK.getInstance().setAsrMode(SmAsrMode.LOCAL)
             // wakeUpCallback = null → skip wake-up, start ASR directly
             SmSpeechSDK.getInstance().startSemanticRecognizer(
                 15000L,  // 15s timeout
