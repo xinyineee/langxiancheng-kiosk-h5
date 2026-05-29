@@ -926,14 +926,84 @@ function speakResult() {
 }
 
 // ==================== ASR (Auto-listen mode) ====================
-let asrSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+// Detect Android JSBridge (SUNMI SDK / Android SpeechRecognizer) vs Web Speech API
+const asrBridge = (typeof AndroidASR !== 'undefined') ? AndroidASR : null;
+let asrBridgeReady = false;   // true once AndroidASR signals ready
+let asrBridgeEngine = '';     // 'sunmi' or 'android'
+const useNativeASR = !!asrBridge;
+
+let asrSupported = !useNativeASR && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
 let asrRecognition = null;
 let isListening = false;
-let asrAutoRestart = false;   // whether to auto-restart after end
+let asrAutoRestart = false;
 let asrRetryCount = 0;
 const ASR_MAX_RETRY = 3;
 
+// ---- Native ASR callbacks (called from Android side via evaluateJavascript) ----
+window._asrPermissionResult = function(granted) {
+  if (!granted) updateASRStatus('denied');
+};
+window._asrOnEngineReady = function(engine, reason) {
+  asrBridgeReady = (engine === 'sunmi' || engine === 'android');
+  asrBridgeEngine = engine;
+  if (asrBridgeReady) {
+    console.log('[ASR] Native engine ready:', engine);
+  } else {
+    console.warn('[ASR] Native engine not ready, reason:', reason);
+  }
+};
+window._asrOnStart = function() {
+  isListening = true;
+  updateASRStatus('listening');
+};
+window._asrOnStop = function() {
+  isListening = false;
+  if (asrAutoRestart && document.getElementById('screenQuestion').classList.contains('active')) {
+    setTimeout(() => {
+      if (asrAutoRestart && !isListening) startASRListening();
+    }, 400);
+  } else {
+    updateASRStatus('idle');
+  }
+};
+window._asrOnPartial = function(results) {
+  if (results && results.length > 0) showLiveTranscript(results[0]);
+};
+window._asrOnResult = function(results) {
+  hideLiveTranscript();
+  asrRetryCount = 0;
+  let choice = null;
+  for (let i = 0; i < (results || []).length && choice === null; i++) {
+    choice = parseASRChoice(results[i]);
+  }
+  if (choice !== null) {
+    asrAutoRestart = false;
+    updateASRStatus('success', ['A','B','C','D'][choice]);
+    setTimeout(() => { updateASRStatus('idle'); selectOption(choice); }, 600);
+  } else {
+    updateASRStatus('retry', (results || [])[0] || '');
+    asrRetryCount++;
+  }
+};
+window._asrOnError = function(err) {
+  isListening = false;
+  hideLiveTranscript();
+  if (err === 'no-speech') {
+    updateASRStatus('listening');
+  } else if (err && err.includes('denied')) {
+    asrAutoRestart = false;
+    updateASRStatus('denied');
+  } else {
+    updateASRStatus('error', err);
+  }
+};
+
 function initASR() {
+  if (useNativeASR) {
+    // Native ASR - engine readiness is handled via window._asrOnEngineReady callback
+    console.log('[ASR] Using native bridge, waiting for engine...');
+    return;
+  }
   if (!asrSupported) return;
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   asrRecognition = new SpeechRecognition();
@@ -949,7 +1019,6 @@ function initASR() {
 
   asrRecognition.onend = () => {
     isListening = false;
-    // Auto restart if still on question screen and no answer yet
     if (asrAutoRestart && document.getElementById('screenQuestion').classList.contains('active')) {
       setTimeout(() => {
         if (asrAutoRestart && !isListening) {
@@ -1020,6 +1089,10 @@ function initASR() {
 }
 
 function startASRListening() {
+  if (useNativeASR) {
+    try { asrBridge.startListening('zh-CN'); } catch(e) { console.error('[ASR] startListening error', e); }
+    return;
+  }
   if (!asrSupported || !asrRecognition) return;
   try {
     asrRecognition.start();
@@ -1030,6 +1103,13 @@ function startASRListening() {
 
 function stopASRListening() {
   asrAutoRestart = false;
+  if (useNativeASR) {
+    try { asrBridge.stopListening(); } catch(e) {}
+    isListening = false;
+    hideLiveTranscript();
+    updateASRStatus('idle');
+    return;
+  }
   if (asrRecognition && isListening) {
     try { asrRecognition.stop(); } catch(e) {}
   }
@@ -1039,15 +1119,20 @@ function stopASRListening() {
 }
 
 function enableAutoASR() {
-  if (!asrSupported) return;
-  if (!asrRecognition) initASR();
+  if (useNativeASR && !asrBridgeReady) {
+    // Engine not ready yet, retry in 500ms
+    console.log('[ASR] Bridge not ready, retrying...');
+    setTimeout(() => { if (asrAutoRestart) enableAutoASR(); }, 500);
+    return;
+  }
+  if (useNativeASR && !asrBridgeReady) return;
   asrAutoRestart = true;
   asrRetryCount = 0;
   startASRListening();
 }
 
 function toggleASR() {
-  if (!asrSupported) {
+  if (!useNativeASR && !asrSupported) {
     showASRToast('当前浏览器不支持语音识别', true);
     return;
   }
