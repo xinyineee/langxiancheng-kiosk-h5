@@ -182,16 +182,18 @@ class MainActivity : AppCompatActivity() {
                         checkSunmiSpeechCapability()
                     }
                     override fun onInitFail(errorCode: String) {
-                        Log.w(TAG, "SUNMI base SDK init fail: $errorCode")
-                        runJs("window._asrOnEngineReady('android', 'sunmi-base-fail:$errorCode')")
+                        Log.w(TAG, "SUNMI base SDK init fail: $errorCode, falling back to Android ASR")
+                        activeEngine = "android"
+                        runJs("window._asrOnEngineReady('android', '')")
                     }
                     override fun onDisconnected(code: Int, reason: String) {
                         Log.w(TAG, "SUNMI base disconnected: $code $reason")
                     }
                 })
         } catch (e: Exception) {
-            Log.w(TAG, "SUNMI base SDK not available", e)
-            runJs("window._asrOnEngineReady('android', 'sunmi-base-exception')")
+            Log.w(TAG, "SUNMI base SDK not available, using Android ASR", e)
+            activeEngine = "android"
+            runJs("window._asrOnEngineReady('android', '')")
         }
     }
 
@@ -218,8 +220,9 @@ class MainActivity : AppCompatActivity() {
                         Log.i(TAG, "SUNMI speech SDK available, initializing...")
                         initSunmiSpeechSDK()
                     } else {
-                        Log.w(TAG, "SUNMI speech SDK not available")
-                        runJs("window._asrOnEngineReady('android', 'speech-sdk-not-ready')")
+                        Log.w(TAG, "SUNMI speech SDK not available, using Android ASR")
+                        activeEngine = "android"
+                        runJs("window._asrOnEngineReady('android', '')")
                     }
                 }
                 override fun onError(errorCode: Int, errorMessage: String) {
@@ -241,14 +244,18 @@ class MainActivity : AppCompatActivity() {
             SmSpeechSDK.getInstance().initialize(this, config,
                 object : ISpeechServiceStateListener {
                     override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK init success")
+                        Log.i(TAG, "SUNMI speech SDK init success (reserved for future use)")
                         sunmiSpeechReady = true
-                        activeEngine = "sunmi"
-                        runJs("window._asrOnEngineReady('sunmi', '')")
+                        // Still use Android SpeechRecognizer as primary engine
+                        // SUNMI SDK reserved for when LOCAL mode works on this device
+                        activeEngine = "android"
+                        androidStartListening("zh-CN")
+                        runJs("window._asrOnEngineReady('android', '')")
                     }
                     override fun onInitFail(errorCode: String) {
-                        Log.w(TAG, "SUNMI speech SDK init fail: $errorCode")
-                        runJs("window._asrOnEngineReady('android', 'speech-init-fail:$errorCode')")
+                        Log.w(TAG, "SUNMI speech SDK init fail: $errorCode, using Android ASR")
+                        activeEngine = "android"
+                        runJs("window._asrOnEngineReady('android', '')")
                     }
                     override fun onDisconnected(code: Int, reason: String) {
                         Log.w(TAG, "SUNMI speech disconnected: $code $reason")
