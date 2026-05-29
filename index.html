@@ -529,42 +529,18 @@
 
   .drink-image-card {
     position: relative;
-    width: 260px;
-    height: 260px;
-    border-radius: 32px;
+    width: 280px;
+    border-radius: 24px;
     overflow: hidden;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
     animation: scale-in 0.8s var(--ease-spring) 0.2s both;
-  }
-  .drink-image-card::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: 34px;
-    background: linear-gradient(135deg, var(--brand), #FFD166, var(--brand));
-    z-index: 0;
-    animation: border-rotate 5s linear infinite;
-  }
-  .drink-image-card::after {
-    content: '';
-    position: absolute;
-    bottom: -40px; left: 50%;
-    transform: translateX(-50%);
-    width: 200px; height: 40px;
-    background: radial-gradient(ellipse, rgba(255,107,26,0.2) 0%, transparent 70%);
-    z-index: 0;
-  }
-  @keyframes border-rotate {
-    0% { filter: hue-rotate(0deg); }
-    100% { filter: hue-rotate(360deg); }
+    background: transparent;
   }
   .drink-image-card img {
-    position: relative;
-    z-index: 1;
+    display: block;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 30px;
+    height: auto;
+    border-radius: 24px;
     transition: opacity 0.5s ease;
   }
   .drink-image-card.img-loading img {
@@ -585,28 +561,17 @@
   @keyframes spin {
     to { transform: translate(-50%, -50%) rotate(360deg); }
   }
+  .drink-image-card.img-error {
+    min-height: 200px;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .drink-image-card.img-error::after {
     content: '☕';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
     font-size: 60px;
-    z-index: 2;
     opacity: 0.5;
-  }
-
-  .drink-name {
-    font-size: 26px;
-    font-weight: 800;
-    animation: fade-up 0.6s var(--ease-out-expo) 0.4s both;
-    letter-spacing: 1px;
-  }
-  .drink-tagline {
-    font-size: 16px;
-    color: var(--brand-light);
-    margin-top: 6px;
-    animation: fade-up 0.6s var(--ease-out-expo) 0.5s both;
-    font-weight: 400;
   }
 
   .heart-card {
@@ -845,8 +810,6 @@
     <div class="drink-image-card" id="drinkImageCard">
       <img id="resultImg" src="" alt="饮品" onerror="this.style.display='none'; document.getElementById('drinkImageCard').classList.add('img-error');">
     </div>
-    <div class="drink-name" id="resultName"></div>
-    <p class="drink-tagline" id="resultTagline"></p>
     <div class="heart-card">
       <p class="heart-copy" id="resultHeartCopy"></p>
       <p class="heart-attribution">— 浪险橙咖啡</p>
@@ -1313,8 +1276,6 @@ function finishTest() {
     const imgEl = document.getElementById('resultImg');
     const cardEl = document.getElementById('drinkImageCard');
 
-    document.getElementById('resultName').textContent = drink.name;
-    document.getElementById('resultTagline').textContent = drink.tagline;
     document.getElementById('resultHeartCopy').textContent = drink.heartCopy;
 
     // Preload image before showing result screen
@@ -1339,11 +1300,7 @@ function finishTest() {
 }
 
 function speakResult() {
-  const drinkName = document.getElementById('resultName').textContent;
-  const drink = drinks.find(d => d.name === drinkName);
-  if (drink) {
-    speak('你的前行饮品是：' + drink.name + '。' + drink.tagline + '。' + drink.heartCopy);
-  }
+  // TTS removed - no-op
 }
 
 // ==================== INIT ====================
