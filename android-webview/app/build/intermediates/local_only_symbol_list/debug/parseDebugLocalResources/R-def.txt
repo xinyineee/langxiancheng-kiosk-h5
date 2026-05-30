@@ -1,0 +1,10 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color white
+id webView
+layout activity_main
+string app_name
+string nfc_hce_desc
+style Theme.AppCompat.Light.NoActionBar.Fullscreen
+xml apduservice

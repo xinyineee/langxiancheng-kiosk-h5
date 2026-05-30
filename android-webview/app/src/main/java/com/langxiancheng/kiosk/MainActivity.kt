@@ -25,13 +25,7 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.app.PendingIntent
-import android.content.IntentFilter
-import android.nfc.NdefMessage
-import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
-import android.nfc.Tag
-import android.nfc.tech.Ndef
 import java.io.File
 
 // SUNMI AI Base SDK
@@ -102,8 +96,6 @@ class MainActivity : AppCompatActivity() {
 
     // ---- NFC state ----
     private var nfcAdapter: NfcAdapter? = null
-    private var nfcWritePending = false
-    private var nfcPendingUrl: String? = null
     private var nfcEnabled = false
 
     // ================================================================
@@ -201,7 +193,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
-        enableNfcForegroundDispatch()
         hideSystemBars()
     }
 
@@ -210,7 +201,6 @@ class MainActivity : AppCompatActivity() {
         webView.onPause()
         autoContinue = false
         stopAllAsr()
-        disableNfcForegroundDispatch()
     }
 
     override fun onDestroy() {
@@ -622,7 +612,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ================================================================
-    // NFC Module
+    // NFC Module (HCE mode — phone taps screen to receive URL)
     // ================================================================
 
     private fun initNfc() {
@@ -634,85 +624,6 @@ class MainActivity : AppCompatActivity() {
         }
         nfcEnabled = true
         Log.i(TAG, "NFC available: ${nfcAdapter?.isEnabled}")
-    }
-
-    /** Enable NFC foreground dispatch so we receive tag discovery intents */
-    private fun enableNfcForegroundDispatch() {
-        if (!nfcEnabled || nfcAdapter == null) return
-        try {
-            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-            val ndefFilter = IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
-                try { addDataType("*/*") } catch (e: Exception) {}
-            }
-            val filters = arrayOf(ndefFilter)
-            val techList = arrayOf(arrayOf(Ndef::class.java.name))
-            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, filters, techList)
-            Log.d(TAG, "NFC foreground dispatch enabled")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to enable NFC foreground dispatch", e)
-        }
-    }
-
-    private fun disableNfcForegroundDispatch() {
-        if (!nfcEnabled || nfcAdapter == null) return
-        try {
-            nfcAdapter?.disableForegroundDispatch(this)
-            Log.d(TAG, "NFC foreground dispatch disabled")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to disable NFC foreground dispatch", e)
-        }
-    }
-
-    /** Write NDEF URL to an NFC tag */
-    private fun writeNdefToTag(url: String, tag: Tag): Boolean {
-        val ndef = Ndef.get(tag) ?: run {
-            Log.w(TAG, "Tag does not support NDEF")
-            return false
-        }
-        return try {
-            ndef.connect()
-            if (!ndef.isWritable) {
-                Log.w(TAG, "Tag is not writable")
-                return false
-            }
-            val uriRecord = NdefRecord.createUri(url)
-            val ndefMessage = NdefMessage(uriRecord)
-            if (ndef.maxSize < ndefMessage.byteArrayLength) {
-                Log.w(TAG, "Tag capacity too small")
-                return false
-            }
-            ndef.writeNdefMessage(ndefMessage)
-            Log.i(TAG, "NFC write successful: $url")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "NFC write error", e)
-            false
-        } finally {
-            try { ndef.close() } catch (_: Exception) {}
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        // Handle NFC tag discovery
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action ||
-            NfcAdapter.ACTION_TAG_DISCOVERED == intent.action) {
-            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            if (tag != null && nfcWritePending && nfcPendingUrl != null) {
-                val url = nfcPendingUrl!!
-                val success = writeNdefToTag(url, tag)
-                nfcWritePending = false
-                nfcPendingUrl = null
-
-                // Notify HTML of write result
-                if (success) {
-                    runJs("window._nfcOnWriteSuccess()")
-                } else {
-                    runJs("window._nfcOnWriteFailure('write-failed')")
-                }
-            }
-        }
     }
 
     // ================================================================
@@ -786,22 +697,24 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun isNfcAvailable(): Boolean = nfcEnabled && nfcAdapter?.isEnabled == true
 
+        /**
+         * Set the URL to be served via HCE when a phone taps the NFC area.
+         * The NdefHceService will respond with this URL as an NDEF URI record.
+         */
         @JavascriptInterface
         fun prepareWrite(drinkId: String) {
             runOnUiThread {
                 val url = "https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=$drinkId"
-                nfcPendingUrl = url
-                nfcWritePending = true
-                Log.i(TAG, "NFC write prepared: $url")
+                NdefHceService.pendingUrl = url
+                Log.i(TAG, "NFC HCE URL set: $url")
                 runJs("window._nfcOnReady()")
             }
         }
 
         @JavascriptInterface
         fun cancelWrite() {
-            nfcWritePending = false
-            nfcPendingUrl = null
-            Log.d(TAG, "NFC write cancelled")
+            NdefHceService.pendingUrl = null
+            Log.d(TAG, "NFC HCE URL cleared")
         }
     }
 

@@ -10,20 +10,24 @@
 
     <!-- Valid result display -->
     <div v-else class="result-content">
-      <DrinkHero
-        :image="drink!.image"
-        :emoji="drink!.emoji"
-        :name="drink!.name"
-        :english-name="drink!.englishName"
-        :tagline="drink!.tagline"
-        :color-hex="drink!.colorHex"
-      />
+      <!-- Capture area: everything to be saved as image -->
+      <div ref="captureCard" class="capture-card">
+        <DrinkHero
+          :image="drink!.image"
+          :emoji="drink!.emoji"
+          :name="drink!.name"
+          :english-name="drink!.englishName"
+          :tagline="drink!.tagline"
+          :color-hex="drink!.colorHex"
+        />
 
-      <HeartCopy :heart-copy="drink!.heartCopy" />
+        <HeartCopy :heart-copy="drink!.heartCopy" />
+      </div>
 
       <ActionButtons
         :drink-name="drink!.name"
         :share-url="shareUrl"
+        :capture-el="captureCard"
       />
 
       <BrandFooter />
@@ -35,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDrinkData } from '../composables/useDrinkData'
 import DrinkHero from '../components/DrinkHero.vue'
@@ -44,6 +49,9 @@ import BrandFooter from '../components/BrandFooter.vue'
 
 const router = useRouter()
 const { drink, isValid, shareUrl } = useDrinkData()
+
+/** Ref for the capture area (used by save-image) */
+const captureCard = ref<HTMLElement | null>(null)
 
 /** 返回欢迎页重新测试 */
 function goHome() {
@@ -93,6 +101,10 @@ function goHome() {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.capture-card {
+  background: transparent;
 }
 
 /* 重新测试按钮（错误状态） */

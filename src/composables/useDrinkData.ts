@@ -43,15 +43,10 @@ export function useDrinkData() {
     return drink.value !== null
   })
 
-  /** The share URL for social media. */
+  /** The share URL for social media — simplified, only drink ID. */
   const shareUrl = computed<string>(() => {
     if (!drinkId.value) return ''
-    const base = 'https://xinyineee.github.io/langxiancheng-kiosk-h5/result'
-    const params = new URLSearchParams()
-    params.set('d', drinkId.value)
-    if (scoreHash.value) params.set('s', scoreHash.value)
-    if (timestamp.value) params.set('t', timestamp.value)
-    return `${base}?${params.toString()}`
+    return `https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=${drinkId.value}`
   })
 
   return {

@@ -15,8 +15,21 @@ android {
         versionName = "2.6.3"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("/tmp/android-keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
-        debug { isDebuggable = true; isMinifyEnabled = false }
+        debug {
+            isDebuggable = true
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
