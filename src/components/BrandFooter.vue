@@ -3,8 +3,8 @@
     <!-- Brand name -->
     <p class="brand-name">浪险橙 · 前行饮品</p>
 
-    <!-- Domain -->
-    <p class="domain">xinyineee.github.io/langxiancheng-kiosk-h5</p>
+    <!-- Address -->
+    <p class="domain">五角场街道大学路一层135号</p>
   </div>
 </template>
 
