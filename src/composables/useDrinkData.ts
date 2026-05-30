@@ -39,18 +39,18 @@ export function useDrinkData() {
 
   /** Whether the drink data is valid and loaded. */
   const isValid = computed<boolean>(() => {
-    return drink.value !== null && scoreHash.value.length > 0
+    // NFC scan: only `d` param is required (no scoreHash needed)
+    return drink.value !== null
   })
 
   /** The share URL for social media. */
   const shareUrl = computed<string>(() => {
     if (!drinkId.value) return ''
     const base = 'https://cafe.langxiancheng.com/result'
-    const params = new URLSearchParams({
-      d: drinkId.value,
-      s: scoreHash.value,
-      t: timestamp.value
-    })
+    const params = new URLSearchParams()
+    params.set('d', drinkId.value)
+    if (scoreHash.value) params.set('s', scoreHash.value)
+    if (timestamp.value) params.set('t', timestamp.value)
     return `${base}?${params.toString()}`
   })
 
