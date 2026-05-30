@@ -46,7 +46,7 @@ export function useDrinkData() {
   /** The share URL for social media. */
   const shareUrl = computed<string>(() => {
     if (!drinkId.value) return ''
-    const base = 'https://cafe.langxiancheng.com/result'
+    const base = 'https://xinyineee.github.io/langxiancheng-kiosk-h5/result'
     const params = new URLSearchParams()
     params.set('d', drinkId.value)
     if (scoreHash.value) params.set('s', scoreHash.value)
