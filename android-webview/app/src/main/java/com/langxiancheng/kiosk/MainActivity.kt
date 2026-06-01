@@ -28,58 +28,38 @@ import androidx.core.content.ContextCompat
 import android.nfc.NfcAdapter
 import java.io.File
 
-// SUNMI AI Base SDK
-import com.sm.ai.framework.base_sdk.ISmSDKStateListener
-import com.sm.ai.framework.main.sdk.SmAIMainFrameworkSDK
-import com.sm.ai.framework.main.sdk.callback.SdkVersionCallback
-import com.sm.ai.framework.main.aidl.SdkStatusInfo
-
-// SUNMI Voice SDK
-import com.sm.ai.framework.asr.sdk.SmSpeechSDK
-import com.sm.ai.framework.asr.sdk.InitialConfig
-import com.sm.ai.framework.asr.sdk.SmAsrMode
-import com.sm.ai.framework.asr.sdk.ISpeechServiceStateListener
-import com.sm.ai.framework.asr.sdk.result.ISpeechSessionResultCallback
-import com.sm.ai.framework.asr.aidl.result.IContinuationRequestCallback
-import com.sm.ai.framework.asr.sdk.lifecycle.ISpeechSessionLifecycle
-
 /**
- * WebView shell for LangXianCheng Kiosk v2.6
- * ASR: SUNMI Voice SDK (WEB mode) + Android SpeechRecognizer (fallback)
+ * WebView shell for LangXianCheng Kiosk v3.0
+ * ASR: iFlytek IAT (WebSocket real-time ASR) + Android SpeechRecognizer (fallback)
  * NFC: NDEF write for result sharing via short URL
  *
- * v2.6 changes:
- * - Added NFC module: write NDEF URL to tag for result sharing
- * - NfcBridge JSBridge exposed as "AndroidNFC"
- * - NFC is optional (required=false), gracefully degrades on non-NFC devices
- *
- * v2.5 changes:
- * - Switched to WEB mode for better Chinese recognition accuracy
- * - Auto-restart session in Kotlin (skip HTML round-trip delay)
- * - Precise timing logs for latency diagnosis
+ * v3.0 changes:
+ * - Replaced SUNMI Voice SDK with iFlytek IAT (语音听写) for better Chinese recognition
+ * - SUNMI SDK had WEB mode degrading to LOCAL (Offline:true), producing garbage results
+ * - iFlytek IAT uses WebSocket to cloud, 6ms latency from device, superior accuracy
+ * - JSBridge interface unchanged — H5 needs zero changes
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "LXCKiosk"
         private const val MIC_REQUEST = 1001
-        /** How many consecutive empty LOCAL results before switching to WEB */
-        private const val LOCAL_EMPTY_THRESHOLD = 2
+
+        // iFlytek credentials — get from https://console.xfyun.cn/app/myapp
+        // Free tier: 500 calls/day for voice dictation
+        private const val IFLYTEK_APP_ID = "181d21eb"
+        private const val IFLYTEK_API_KEY = "d8517eafd932725a938ddd083729f509"
+        private const val IFLYTEK_API_SECRET = "OWM3ZjA1NGQ0MTA2N2M4NjNlNWQyM2Ey"
     }
 
     private lateinit var webView: WebView
     private val handler = Handler(Looper.getMainLooper())
 
-    // ---- SUNMI Voice SDK state ----
-    private var sunmiBaseReady = false
-    private var sunmiSpeechReady = false
-    private var sunmiAsrActive = false
-    /** Current ASR mode: "local" or "web" */
-    private var currentAsrMode = "local"
-    /** Consecutive empty results from LOCAL mode */
-    private var localEmptyCount = 0
-    /** Whether LOCAL mode has been permanently disabled (fell back to WEB) */
-    private var localDisabled = false
+    // ---- iFlytek ASR state ----
+    private var iflytekEngine: IflytekAsrEngine? = null
+    private var iflytekReady = false
+    private var iflytekActive = false
+
     /** Whether HTML wants ASR to auto-continue after session ends */
     private var autoContinue = false
     /** Last language requested via JSBridge */
@@ -91,7 +71,7 @@ class MainActivity : AppCompatActivity() {
     private var androidRecognizer: SpeechRecognizer? = null
     private var androidListening = false
 
-    /** Which ASR engine is active: "sunmi" | "android" | "none" */
+    /** Which ASR engine is active: "iflytek" | "android" | "none" */
     private var activeEngine = "none"
 
     // ---- NFC state ----
@@ -139,9 +119,28 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?, request: WebResourceRequest?
             ): Boolean = false
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Notify H5 that ASR engine is ready (after JS functions are loaded)
+                when (activeEngine) {
+                    "iflytek" -> runJs("window._asrOnEngineReady('iflytek', 'cloud')")
+                    "android" -> runJs("window._asrOnEngineReady('android', 'fallback')")
+                }
+            }
         }
 
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(msg: android.webkit.ConsoleMessage?): Boolean {
+                val text = msg?.message() ?: return false
+                if (text.startsWith("[ASR]")) {
+                    handler.post {
+                        android.widget.Toast.makeText(this@MainActivity, text, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                return super.onConsoleMessage(msg)
+            }
+        }
         webView.addJavascriptInterface(AsrBridge(), "AndroidASR")
         webView.addJavascriptInterface(NfcBridge(), "AndroidNFC")
 
@@ -171,8 +170,8 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST)
         }
 
-        // Init SUNMI SDK
-        initSunmiSDK()
+        // Init iFlytek ASR
+        initIflytekAsr()
         initNfc()
     }
 
@@ -205,7 +204,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         autoContinue = false
-        destroySunmiSpeechSDK()
+        iflytekEngine?.destroy()
         androidRecognizer?.destroy()
         webView.destroy()
         super.onDestroy()
@@ -248,271 +247,78 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ================================================================
-    // SUNMI Voice SDK
+    // iFlytek IAT ASR Engine
     // ================================================================
 
-    private fun initSunmiSDK() {
-        try {
-            SmAIMainFrameworkSDK.getInstance().initialize(this,
-                object : ISmSDKStateListener {
-                    override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI base SDK init success")
-                        sunmiBaseReady = true
-                        checkSunmiSpeechCapability()
-                    }
-                    override fun onInitFail(errorCode: String) {
-                        Log.w(TAG, "SUNMI base SDK init fail: $errorCode, falling back to Android ASR")
-                        activeEngine = "android"
-                        runJs("window._asrOnEngineReady('android', '')")
-                    }
-                    override fun onDisconnected(code: Int, reason: String) {
-                        Log.w(TAG, "SUNMI base disconnected: $code $reason")
-                    }
-                })
-        } catch (e: Exception) {
-            Log.w(TAG, "SUNMI base SDK not available, using Android ASR", e)
+    private fun initIflytekAsr() {
+        // Check if credentials are configured
+        if (IFLYTEK_APP_ID == "YOUR_APP_ID" || IFLYTEK_API_KEY == "YOUR_API_KEY") {
+            Log.w(TAG, "iFlytek credentials not configured, falling back to Android ASR")
+            Log.w(TAG, "Set IFLYTEK_APP_ID, IFLYTEK_API_KEY, IFLYTEK_API_SECRET in MainActivity.kt")
             activeEngine = "android"
-            runJs("window._asrOnEngineReady('android', '')")
+            // onPageFinished will notify H5
+            return
         }
-    }
 
-    private fun checkSunmiSpeechCapability() {
         try {
-            SmAIMainFrameworkSDK.getInstance().checkSdkVersion(object : SdkVersionCallback {
-                override fun onSdkVersionCheckResult(statuses: List<SdkStatusInfo>?) {
-                    if (statuses == null) {
-                        Log.w(TAG, "No SUNMI capabilities found")
-                        runJs("window._asrOnEngineReady('android', 'no-capabilities')")
-                        return
-                    }
-                    var speechAvailable = false
-                    for (info in statuses) {
-                        val name = try { info.sdkName } catch (e: Exception) { null }
-                        val state = try { info.state } catch (e: Exception) { null }
-                        Log.d(TAG, "SUNMI capability: name=$name state=$state")
-                        if (name == "sunmi_speech_interaction" && state == "3") {
-                            speechAvailable = true
-                            break
-                        }
-                    }
-                    if (speechAvailable) {
-                        Log.i(TAG, "SUNMI speech SDK available, initializing...")
-                        initSunmiSpeechSDK()
-                    } else {
-                        Log.w(TAG, "SUNMI speech SDK not available, using Android ASR")
-                        activeEngine = "android"
-                        runJs("window._asrOnEngineReady('android', '')")
-                    }
-                }
-                override fun onError(errorCode: Int, errorMessage: String) {
-                    Log.w(TAG, "SUNMI checkSdkVersion error: $errorCode $errorMessage")
-                    runJs("window._asrOnEngineReady('android', 'check-error:$errorCode')")
-                }
-            })
-        } catch (e: Exception) {
-            Log.w(TAG, "checkSdkVersion exception", e)
-            runJs("window._asrOnEngineReady('android', 'check-exception')")
-        }
-    }
-
-    private fun initSunmiSpeechSDK() {
-        try {
-            // Use WEB mode for best Chinese recognition accuracy
-            val config = InitialConfig("", "", "").apply {
-                asrMode = SmAsrMode.WEB
-            }
-            currentAsrMode = "web"
-            SmSpeechSDK.getInstance().initialize(this, config,
-                object : ISpeechServiceStateListener {
-                    override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK init success (WEB mode), using SUNMI ASR engine")
-                        sunmiSpeechReady = true
-                        activeEngine = "sunmi"
-                        handler.post {
-                            runJs("window._asrOnEngineReady('sunmi', 'local')")
-                        }
-                    }
-                    override fun onInitFail(errorCode: String) {
-                        Log.w(TAG, "SUNMI speech SDK init fail: $errorCode, using Android ASR")
-                        activeEngine = "android"
-                        runJs("window._asrOnEngineReady('android', '')")
-                    }
-                    override fun onDisconnected(code: Int, reason: String) {
-                        Log.w(TAG, "SUNMI speech disconnected: $code $reason")
-                    }
-                })
-        } catch (e: Exception) {
-            Log.w(TAG, "initSunmiSpeechSDK exception", e)
-            runJs("window._asrOnEngineReady('android', 'speech-init-exception')")
-        }
-    }
-
-    /** Re-initialize SDK with WEB mode after LOCAL mode fails */
-    private fun switchToWebMode() {
-        if (currentAsrMode == "web") return
-        Log.i(TAG, "Switching ASR from LOCAL → WEB mode (LOCAL produced $localEmptyCount empty results)")
-        currentAsrMode = "web"
-        localDisabled = true
-        try {
-            SmSpeechSDK.getInstance().destroy()
-            sunmiSpeechReady = false
-            sunmiAsrActive = false
-
-            val config = InitialConfig("", "", "").apply {
-                asrMode = SmAsrMode.WEB
-            }
-            SmSpeechSDK.getInstance().initialize(this, config,
-                object : ISpeechServiceStateListener {
-                    override fun onInitSuccess() {
-                        Log.i(TAG, "SUNMI speech SDK re-init success (WEB mode)")
-                        sunmiSpeechReady = true
-                        activeEngine = "sunmi"
-                        runJs("window._asrOnEngineReady('sunmi', 'web')")
-                    }
-                    override fun onInitFail(errorCode: String) {
-                        Log.w(TAG, "SUNMI speech SDK WEB init fail: $errorCode")
-                        activeEngine = "android"
-                        runJs("window._asrOnEngineReady('android', '')")
-                    }
-                    override fun onDisconnected(code: Int, reason: String) {
-                        Log.w(TAG, "SUNMI speech disconnected: $code $reason")
-                    }
-                })
-        } catch (e: Exception) {
-            Log.w(TAG, "switchToWebMode exception", e)
-            activeEngine = "android"
-            runJs("window._asrOnEngineReady('android', '')")
-        }
-    }
-
-    private fun destroySunmiSpeechSDK() {
-        try {
-            if (sunmiAsrActive) {
-                SmSpeechSDK.getInstance().stopSemanticRecognizer()
-                sunmiAsrActive = false
-            }
-            SmSpeechSDK.getInstance().destroy()
-        } catch (e: Exception) {
-            Log.w(TAG, "destroySunmiSpeechSDK error", e)
-        }
-    }
-
-    private fun sunmiStartListening(lang: String) {
-        if (!sunmiSpeechReady) return
-        try {
-            sunmiAsrActive = true
-            sessionStartTime = System.currentTimeMillis()
-            Log.i(TAG, "ASR start [mode=$currentAsrMode] t=0ms")
-
-            SmSpeechSDK.getInstance().startSemanticRecognizer(
-                15000L,  // 15s timeout
-                null as ISpeechSessionResultCallback.IWakeUpCallback?,
-                object : ISpeechSessionResultCallback.IStreamingSpeechRecognitionCallback {
-                    override fun onPartialResult(partialText: String, direction: Int, translate: Boolean) {
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.d(TAG, "ASR partial [${elapsed}ms]: $partialText")
-                        runJs("window._asrOnPartial(['${partialText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}'])")
-                    }
-                    override fun onAsrFinalResult(finalText: String, direction: Int, translate: Boolean) {
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.i(TAG, "ASR final [${elapsed}ms]: $finalText")
-
-                        // LOCAL mode empty result detection
-                        if (currentAsrMode == "local" && finalText.isBlank()) {
-                            localEmptyCount++
-                            Log.w(TAG, "LOCAL empty result #$localEmptyCount")
-                            if (localEmptyCount >= LOCAL_EMPTY_THRESHOLD && !localDisabled) {
-                                switchToWebMode()
-                            }
-                        } else if (finalText.isNotBlank()) {
-                            localEmptyCount = 0  // reset on successful result
-                        }
-
-                        val json = "[\"${finalText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")}\"]"
-                        runJs("window._asrOnResult($json)")
-                    }
-                },
-                object : ISpeechSessionResultCallback {
-                    override fun onContinuationRequired(
-                        currentResult: String?,
-                        promptText: String?,
-                        callback: IContinuationRequestCallback?
-                    ) { /* not needed */ }
-                    override fun onSemanticResult(
-                        nluResult: String?,
-                        callback: IContinuationRequestCallback?
-                    ) { /* ignore semantic, only ASR text */ }
-                    override fun onError(
-                        errorCode: String?,
-                        callback: IContinuationRequestCallback?
-                    ) {
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.w(TAG, "ASR error [${elapsed}ms]: $errorCode (mode=$currentAsrMode)")
-                        // Suppress semantic/NLU errors — we only use ASR text, not NLU
-                        if (errorCode != null && (errorCode.startsWith("A-FSN") ||
-                            errorCode.contains("tool.json") || errorCode.contains("promptUUID"))) {
-                            Log.d(TAG, "Suppressed semantic error (not an ASR error)")
-                            return
-                        }
-                        val errCode = errorCode ?: "unknown"
-                        runJs("window._asrOnError('sunmi-error:$errCode')")
-                    }
-                    override fun buildLlmToolJson(): String = ""
-                    override fun buildLlmContent(rawText: String, direction: Int): String = rawText
-                    override fun buildLlmPromptUUID(): String = ""
-                    override fun buildLlmExtraContent(): String = ""
-                    override fun buildLlmSourceLang(): String = ""
-                },
-                object : ISpeechSessionLifecycle {
-                    override fun onSessionReady() {
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.i(TAG, "ASR session ready [${elapsed}ms]")
-                    }
-                    override fun onWakeUpReady() {}
-                    override fun onCaptureStarted() {
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.i(TAG, "ASR capture started [${elapsed}ms]")
+            iflytekEngine = IflytekAsrEngine(
+                appId = IFLYTEK_APP_ID,
+                apiKey = IFLYTEK_API_KEY,
+                apiSecret = IFLYTEK_API_SECRET,
+                callback = object : IflytekAsrEngine.Callback {
+                    override fun onStart() {
+                        iflytekActive = true
+                        sessionStartTime = System.currentTimeMillis()
+                        Log.i(TAG, "iFlytek ASR capture started [${System.currentTimeMillis() - sessionStartTime}ms]")
                         runJs("window._asrOnStart()")
                     }
-                    override fun onCapturePaused() {}
-                    override fun onCaptureResumed() {}
-                    override fun onSemanticProcessingStarted() {}
-                    override fun onSemanticProcessingIncomplete() {}
-                    override fun onSemanticProcessingCompleted() {}
-                    override fun onSessionEnded() {
+
+                    override fun onPartial(text: String) {
                         val elapsed = System.currentTimeMillis() - sessionStartTime
-                        Log.i(TAG, "ASR session ended [${elapsed}ms], autoContinue=$autoContinue")
-                        sunmiAsrActive = false
+                        Log.d(TAG, "iFlytek ASR partial [${elapsed}ms]: $text")
+                        val escaped = text.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")
+                        runJs("window._asrOnPartial(['$escaped'])")
+                    }
+
+                    override fun onResult(text: String) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "iFlytek ASR final [${elapsed}ms]: $text")
+                        val escaped = text.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")
+                        runJs("window._asrOnResult(['$escaped'])")
+                    }
+
+                    override fun onError(error: String) {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.w(TAG, "iFlytek ASR error [${elapsed}ms]: $error")
+                        runJs("window._asrOnError('$error')")
+                    }
+
+                    override fun onStop() {
+                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        Log.i(TAG, "iFlytek ASR session ended [${elapsed}ms], autoContinue=$autoContinue")
+                        iflytekActive = false
                         runJs("window._asrOnStop()")
 
                         // Auto-restart: skip HTML round-trip, start new session immediately
                         if (autoContinue) {
                             handler.postDelayed({
-                                if (autoContinue && !sunmiAsrActive && sunmiSpeechReady) {
-                                    Log.i(TAG, "Auto-continuing ASR session (0ms HTML delay)")
-                                    sunmiStartListening(lastLang)
+                                if (autoContinue && !iflytekActive && iflytekReady) {
+                                    Log.i(TAG, "Auto-continuing iFlytek ASR session (0ms HTML delay)")
+                                    iflytekEngine?.startListening()
                                 }
-                            }, 100)  // 100ms settle time instead of 200ms HTML round-trip
+                            }, 200)  // 200ms settle for new WebSocket connection
                         }
                     }
                 }
             )
+            iflytekReady = true
+            activeEngine = "iflytek"
+            Log.i(TAG, "iFlytek ASR engine initialized successfully")
+            // onPageFinished will notify H5 with _asrOnEngineReady
         } catch (e: Exception) {
-            sunmiAsrActive = false
-            Log.w(TAG, "sunmiStartListening error", e)
-            runJs("window._asrOnError('sunmi-start-failed')")
-        }
-    }
-
-    private fun sunmiStopListening() {
-        autoContinue = false
-        try {
-            if (sunmiAsrActive) {
-                SmSpeechSDK.getInstance().stopSemanticRecognizer()
-                sunmiAsrActive = false
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "sunmiStopListening error", e)
+            Log.w(TAG, "iFlytek init failed, falling back to Android ASR", e)
+            activeEngine = "android"
+            // onPageFinished will notify H5
         }
     }
 
@@ -607,7 +413,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopAllAsr() {
         autoContinue = false
-        sunmiStopListening()
+        iflytekEngine?.stopListening()
         androidStopListening()
     }
 
@@ -636,18 +442,19 @@ class MainActivity : AppCompatActivity() {
         fun getEngine(): String = activeEngine
 
         @JavascriptInterface
-        fun getAsrMode(): String = currentAsrMode
+        fun getAsrMode(): String = if (activeEngine == "iflytek") "cloud" else "local"
 
         @JavascriptInterface
         fun startListening(lang: String) {
             runOnUiThread {
                 lastLang = lang
-                Log.i(TAG, "JSBridge startListening, engine=$activeEngine, mode=$currentAsrMode, lang=$lang")
+                Log.i(TAG, "JSBridge startListening, engine=$activeEngine, lang=$lang")
                 when (activeEngine) {
-                    "sunmi" -> {
-                        if (sunmiSpeechReady) sunmiStartListening(lang)
-                        else {
-                            Log.w(TAG, "SUNMI not ready, falling back to Android")
+                    "iflytek" -> {
+                        if (iflytekReady && !iflytekActive) {
+                            iflytekEngine?.startListening()
+                        } else {
+                            Log.w(TAG, "iFlytek not ready or busy, falling back to Android")
                             androidStartListening(lang)
                         }
                     }
@@ -674,22 +481,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun isSunmiReady(): Boolean = sunmiSpeechReady
+        fun isSunmiReady(): Boolean = false  // No longer using SUNMI
 
         @JavascriptInterface
         fun isAndroidAvailable(): Boolean =
             SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
 
-        /** HTML reports ASR no-match — counts towards LOCAL→WEB fallback */
+        /** HTML reports ASR no-match — no longer needed for iFlytek (cloud ASR doesn't need fallback) */
         @JavascriptInterface
         fun reportNoMatch() {
-            if (currentAsrMode == "local" && !localDisabled) {
-                localEmptyCount++
-                Log.w(TAG, "LOCAL no-match reported by HTML, count=$localEmptyCount")
-                if (localEmptyCount >= LOCAL_EMPTY_THRESHOLD) {
-                    switchToWebMode()
-                }
-            }
+            Log.d(TAG, "reportNoMatch: no-op (using iFlytek cloud ASR)")
         }
     }
 

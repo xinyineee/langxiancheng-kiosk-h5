@@ -2,3 +2,5 @@ node_modules
 dist
 *.local
 .DS_Store
+android-webview/app/build/
+cover-preview-*.html

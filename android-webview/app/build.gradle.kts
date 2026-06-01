@@ -11,8 +11,8 @@ android {
         applicationId = "com.langxiancheng.kiosk"
         minSdk = 21
         targetSdk = 35
-        versionCode = 8
-        versionName = "2.6.3"
+        versionCode = 9
+        versionName = "3.0.0"
     }
 
     signingConfigs {
@@ -56,12 +56,6 @@ dependencies {
     implementation("androidx.core:core:1.15.0")
     implementation("androidx.webkit:webkit:1.12.1")
 
-    // SUNMI AI Base SDK
-    implementation(files("libs/sm_base_sdk.aar"))
-    implementation(files("libs/sm_main_framework_aidl.aar"))
-    implementation(files("libs/sm_main_framework_sdk.aar"))
-
-    // SUNMI Voice SDK
-    implementation(files("libs/sm_asr_aidl.aar"))
-    implementation(files("libs/sm_asr_sdk.aar"))
+    // OkHttp — for iFlytek IAT WebSocket ASR
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
