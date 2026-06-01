@@ -12,8 +12,14 @@ import type { Drink, DrinkId } from '../types/drink'
 export function useDrinkData() {
   const route = useRoute()
 
-  /** The drink ID from the URL query parameter. */
+  /** The drink ID from the URL (supports both path param /result/D1 and query param /result?d=D1). */
   const drinkId = computed<DrinkId | null>(() => {
+    // Try path parameter first (new format: /result/D1)
+    const idParam = route.params.id as string | undefined
+    if (idParam && ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'].includes(idParam)) {
+      return idParam as DrinkId
+    }
+    // Fall back to query parameter (legacy format: /result?d=D1)
     const d = route.query.d as string | undefined
     if (d && ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'].includes(d)) {
       return d as DrinkId
