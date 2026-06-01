@@ -13,7 +13,7 @@ export const drinks: Drink[] = [
     heartCopy: '每一个起点，都藏着你最好的可能。今天，就是你的新起跑线。',
     colorHex: '#FFB347',
     emoji: '🍐',
-    image: 'images/drink1.jpg'
+    image: '/images/drink1.jpg'
   },
   {
     id: 'D2',
@@ -23,7 +23,7 @@ export const drinks: Drink[] = [
     heartCopy: '路不是直的，味道也不是简单的。但复杂里，藏着最真实的你。',
     colorHex: '#C06C84',
     emoji: '🫐',
-    image: 'images/drink2.jpg'
+    image: '/images/drink2.jpg'
   },
   {
     id: 'D3',
@@ -33,7 +33,7 @@ export const drinks: Drink[] = [
     heartCopy: '不是每次拼搏都有结果，但每次拼搏都有意义。这一杯，献给此刻的你。',
     colorHex: '#FF6B1A',
     emoji: '💪',
-    image: 'images/drink3.jpg'
+    image: '/images/drink3.jpg'
   },
   {
     id: 'D4',
@@ -43,7 +43,7 @@ export const drinks: Drink[] = [
     heartCopy: '混乱之后，清晨终会来临。你已经走过最暗的那段路了。',
     colorHex: '#FF8C42',
     emoji: '🌅',
-    image: 'images/drink4.jpg'
+    image: '/images/drink4.jpg'
   },
   {
     id: 'D5',
@@ -53,7 +53,7 @@ export const drinks: Drink[] = [
     heartCopy: '不用急，慢慢来。走得稳的人，最终都能闻到桂花香。',
     colorHex: '#D4A574',
     emoji: '🍂',
-    image: 'images/drink5.jpg'
+    image: '/images/drink5.jpg'
   },
   {
     id: 'D6',
@@ -63,7 +63,7 @@ export const drinks: Drink[] = [
     heartCopy: '熬过来了。真的熬过来了。这一杯，是你给自己最好的礼物。',
     colorHex: '#E8C07D',
     emoji: '🎉',
-    image: 'images/drink6.jpg'
+    image: '/images/drink6.jpg'
   }
 ]
 
