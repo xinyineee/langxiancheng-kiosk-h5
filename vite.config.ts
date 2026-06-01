@@ -20,7 +20,7 @@ function cloudflarePages404() {
 
 export default defineConfig({
   plugins: [vue(), cloudflarePages404()],
-  base: './', // Relative paths — works for both file:// (Android assets) and https:// (Cloudflare Pages)
+  base: '/', // Absolute paths — Vite build is ONLY for Cloudflare Pages (APK uses single-file HTML)
   server: {
     port: 5173,
     host: true
