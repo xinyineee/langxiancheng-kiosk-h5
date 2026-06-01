@@ -505,7 +505,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun prepareWrite(drinkId: String) {
             runOnUiThread {
-                val url = "https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=$drinkId"
+                val url = "https://kiosk-h5.pages.dev/result/$drinkId"
                 NdefHceService.pendingUrl = url
                 Log.i(TAG, "NFC HCE URL set: $url")
                 runJs("window._nfcOnReady()")

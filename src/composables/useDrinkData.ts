@@ -43,10 +43,10 @@ export function useDrinkData() {
     return drink.value !== null
   })
 
-  /** The share URL for social media — simplified, only drink ID. */
+  /** The share URL for social media — path-based format (NFC safe, no query string encoding issues). */
   const shareUrl = computed<string>(() => {
     if (!drinkId.value) return ''
-    return `https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=${drinkId.value}`
+    return `https://kiosk-h5.pages.dev/result/${drinkId.value}`
   })
 
   return {

@@ -7,7 +7,8 @@ import ResultView from '../views/ResultView.vue'
  * 路由配置
  * / → 欢迎页
  * /quiz → 测试页
- * /result → 结果页（支持 URL query 参数和测试流程跳转）
+ * /result/:id → 结果页（路径参数，NFC 友好，避免 query string 编码问题）
+ * /result → 结果页（兼容旧 query 参数格式）
  */
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -23,6 +24,18 @@ const router = createRouter({
       component: QuizView
     },
     {
+      // New format: /result/D1 (path parameter — NFC safe, no ? and & encoding issues)
+      path: '/result/:id',
+      name: 'result-path',
+      component: ResultView,
+      props: (route) => ({
+        drinkId: route.params.id as string || '',
+        scoreHash: '',
+        timestamp: ''
+      })
+    },
+    {
+      // Legacy format: /result?d=D1 (query parameter — kept for backward compat)
       path: '/result',
       name: 'result',
       component: ResultView,

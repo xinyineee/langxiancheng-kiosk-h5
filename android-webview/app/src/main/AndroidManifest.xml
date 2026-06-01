@@ -38,7 +38,7 @@
             <intent-filter>
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="https" android:host="xinyineee.github.io" android:pathPrefix="/langxiancheng-kiosk-h5/" />
+                <data android:scheme="https" android:host="kiosk-h5.pages.dev" android:pathPrefix="/" />
             </intent-filter>
         </activity>
 

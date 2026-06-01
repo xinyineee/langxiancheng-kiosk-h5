@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/langxiancheng-kiosk-h5/',
+  base: './', // Relative paths — works for both file:// (Android assets) and https:// (Cloudflare Pages)
   server: {
     port: 5173,
     host: true

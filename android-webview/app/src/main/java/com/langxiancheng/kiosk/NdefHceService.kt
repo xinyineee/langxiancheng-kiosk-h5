@@ -62,7 +62,7 @@ class NdefHceService : HostApduService() {
     private var ndefSelected = false
 
     // Pre-built NDEF record file (NLEN + NDEF message bytes)
-    private var ndefRecordFile: ByteArray = buildNdefFile("https://xinyineee.github.io/langxiancheng-kiosk-h5/result?d=D1")
+    private var ndefRecordFile: ByteArray = buildNdefFile("https://kiosk-h5.pages.dev/result/D1")
 
     override fun onCreate() {
         super.onCreate()
