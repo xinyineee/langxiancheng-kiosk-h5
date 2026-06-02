@@ -10,8 +10,12 @@ export interface WeightEntry {
 export interface AnswerOption {
   /** 选项标签（A/B/C/D） */
   label: string
-  /** 选项文本 */
+  /** 表情符号 */
+  emoji?: string
+  /** 选项主文本 */
   optionText: string
+  /** 选项副文本 */
+  subText?: string
   /** 权重列表 */
   weights: WeightEntry[]
 }
@@ -29,62 +33,63 @@ export interface Question {
 }
 
 /**
- * 测试题数据，与 Android TestDataRepository 完全一致。
+ * 测试题数据，与设备端 kiosk HTML 完全一致。
+ * 权重数组 [D1, D2, D3, D4, D5, D6] 已展开为显式 drinkId + weight。
  */
 export const questions: Question[] = [
   {
     id: 'Q1',
     orderIndex: 0,
-    questionText: '如果你的人生是一杯咖啡，现在处于哪个阶段？',
+    questionText: '你今天更像哪种状态？',
     options: [
-      { label: 'A', optionText: '刚磨好豆子，满是香气和期待', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }] },
-      { label: 'B', optionText: '正在萃取中，有点苦但很专注', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
-      { label: 'C', optionText: '快好了，闻到了那股味道', weights: [{ drinkId: 'D5', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
-      { label: 'D', optionText: '已经端到手里，该好好喝了', weights: [{ drinkId: 'D6', weight: 3 }, { drinkId: 'D3', weight: 1 }] }
+      { label: 'A', emoji: '🌅', optionText: '刚刚苏醒', subText: '想慢慢进入状态', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'B', emoji: '🔥', optionText: '准备狠狠干', subText: '今天想要快速推进', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
+      { label: 'C', emoji: '😌', optionText: '慢慢来', subText: '有自己的节奏', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '🚀', optionText: '直接开冲', subText: '先做了再说', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D3', weight: 3 }] }
     ]
   },
   {
     id: 'Q2',
     orderIndex: 1,
-    questionText: '有人问你"你最近怎么样"，你最诚实的回答是？',
+    questionText: '此刻你最想要哪种味道？',
     options: [
-      { label: 'A', optionText: '还在想，脑子里一堆想法没落地', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D4', weight: 2 }] },
-      { label: 'B', optionText: '乱得很，但好像也挺有意思的', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 1 }] },
-      { label: 'C', optionText: '在熬，但方向越来越清晰了', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D4', weight: 2 }] },
-      { label: 'D', optionText: '挺好的，刚过了一个难关', weights: [{ drinkId: 'D6', weight: 3 }, { drinkId: 'D3', weight: 1 }] }
+      { label: 'A', emoji: '🍊', optionText: '清爽果香', subText: '像刚切开的橙子', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D4', weight: 3 }] },
+      { label: 'B', emoji: '🍫', optionText: '浓郁可可', subText: '微苦但很有层次', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 1 }] },
+      { label: 'C', emoji: '🌾', optionText: '温暖谷物', subText: '像太阳晒过的麦子', weights: [{ drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '🍯', optionText: '焦糖甜感', subText: '今天需要一点安慰', weights: [{ drinkId: 'D3', weight: 2 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
     ]
   },
   {
     id: 'Q3',
     orderIndex: 2,
-    questionText: '面对一个没把握但很诱人的机会，你会？',
+    questionText: '如果面前有两条路，你会？',
     options: [
-      { label: 'A', optionText: '直接冲，失败了再说', weights: [{ drinkId: 'D3', weight: 3 }, { drinkId: 'D1', weight: 1 }] },
-      { label: 'B', optionText: '先研究研究，再决定', weights: [{ drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }] },
-      { label: 'C', optionText: '边走边看，先踏出第一步', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D1', weight: 2 }] },
-      { label: 'D', optionText: '等时机更成熟再出手', weights: [{ drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] }
+      { label: 'A', emoji: '🏃', optionText: '冲进雾里', subText: '看不清才刺激', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }] },
+      { label: 'B', emoji: '🗺️', optionText: '先看地图', subText: '研究清楚再出发', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'C', emoji: '👣', optionText: '边走边看', subText: '先踏出一步', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 2 }] },
+      { label: 'D', emoji: '⏳', optionText: '等雾散', subText: '时机到了再动', weights: [{ drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 2 }] }
     ]
   },
   {
     id: 'Q4',
     orderIndex: 3,
-    questionText: '你和朋友约好一起创业，对方突然退出，你？',
+    questionText: '大风刮来，你只留一样东西？',
     options: [
-      { label: 'A', optionText: '自己干，反正我本来就准备单飞', weights: [{ drinkId: 'D3', weight: 3 }, { drinkId: 'D1', weight: 1 }] },
-      { label: 'B', optionText: '调整心态，重新找搭档', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 2 }] },
-      { label: 'C', optionText: '沉淀一下，想清楚再出发', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D4', weight: 2 }] },
-      { label: 'D', optionText: '喝杯咖啡，今天先放下', weights: [{ drinkId: 'D6', weight: 2 }, { drinkId: 'D2', weight: 2 }] }
+      { label: 'A', emoji: '🔥', optionText: '火把', subText: '自己的光最重要', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
+      { label: 'B', emoji: '🧭', optionText: '罗盘', subText: '方向比速度重要', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }] },
+      { label: 'C', emoji: '📖', optionText: '日记', subText: '先沉淀再出发', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '☕', optionText: '咖啡', subText: '先补充一点能量', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
     ]
   },
   {
     id: 'Q5',
     orderIndex: 4,
-    questionText: '浪险橙的 Slogan 是"浪、险、成"——你现在最像哪个字？',
+    questionText: '浪、险、成，哪个字在敲你的心？',
     options: [
-      { label: 'A', optionText: '浪——随心所欲，探索未知', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }] },
-      { label: 'B', optionText: '险——在悬崖边上，但不退缩', weights: [{ drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
-      { label: 'C', optionText: '成——已经看到结果的轮廓了', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 2 }] },
-      { label: 'D', optionText: '还没想好，三个字我都想要', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D1', weight: 2 }] }
+      { label: 'A', emoji: '🌊', optionText: '浪', subText: '世界很大，我想去看看', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }] },
+      { label: 'B', emoji: '⛰️', optionText: '险', subText: '站在崖边，也不想退', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 2 }] },
+      { label: 'C', emoji: '🏆', optionText: '成', subText: '已经看到终点轮廓', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 3 }] },
+      { label: 'D', emoji: '🎲', optionText: '都在变', subText: '三个字我都想要', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 1 }] }
     ]
   }
 ]

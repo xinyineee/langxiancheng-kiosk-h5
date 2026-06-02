@@ -24,8 +24,14 @@
           :class="{ 'option-selected': selectedLabel === option.label }"
           @click="selectOption(option)"
         >
-          <span class="option-label">{{ option.label }}</span>
-          <span class="option-text">{{ option.optionText }}</span>
+          <span v-if="option.emoji" class="option-emoji">{{ option.emoji }}</span>
+          <div class="option-body">
+            <div class="option-main">
+              <span class="option-label">{{ option.label }}</span>
+              <span class="option-text">{{ option.optionText }}</span>
+            </div>
+            <div v-if="option.subText" class="option-sub">{{ option.subText }}</div>
+          </div>
         </button>
       </div>
     </div>
@@ -173,8 +179,8 @@ function selectOption(option: AnswerOption) {
 
 .option-card {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   padding: 16px 18px;
   background: #FFFFFF;
   border: 2px solid #F0E6DC;
@@ -192,6 +198,25 @@ function selectOption(option: AnswerOption) {
 .option-card.option-selected {
   border-color: #FF6B1A;
   background-color: #FFF5ED;
+}
+
+.option-emoji {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.option-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .option-label {
@@ -214,14 +239,24 @@ function selectOption(option: AnswerOption) {
 }
 
 .option-text {
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.4;
   color: #1A1A1A;
-  padding-top: 3px;
+  font-weight: 600;
 }
 
 .option-selected .option-text {
-  font-weight: 600;
   color: #FF6B1A;
+}
+
+.option-sub {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #8C7A6E;
+  margin-left: 38px;
+}
+
+.option-selected .option-sub {
+  color: #C48A5E;
 }
 </style>
