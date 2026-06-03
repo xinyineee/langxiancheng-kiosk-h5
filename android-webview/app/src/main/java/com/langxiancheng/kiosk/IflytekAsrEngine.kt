@@ -148,9 +148,13 @@ class IflytekAsrEngine(
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
-                // During preconnect, server shouldn't send messages
-                // But handle gracefully — might be an error
-                Log.w(TAG, "Preconnect: unexpected message: $text")
+                // If state is LISTENING, this WebSocket is being reused for an active session
+                if (state == State.LISTENING) {
+                    handleServerMessage(text)
+                } else {
+                    // During preconnect, server shouldn't send messages yet
+                    Log.w(TAG, "Preconnect: unexpected message: $text")
+                }
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
@@ -173,9 +177,15 @@ class IflytekAsrEngine(
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 val msg = response?.let { "HTTP ${it.code}: ${it.message}" } ?: t.message ?: "unknown"
-                Log.w(TAG, "Preconnect: failed: $msg")
-                state = State.IDLE
-                webSocket = null
+                if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
+                    Log.w(TAG, "Preconnect: failed: $msg")
+                    state = State.IDLE
+                    webSocket = null
+                } else if (state == State.LISTENING) {
+                    Log.e(TAG, "WebSocket failure during session: $msg", t)
+                    callback.onError("iflytek-connection: $msg")
+                    stopListening()
+                }
                 preconnectLatch?.countDown()
             }
         })
