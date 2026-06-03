@@ -327,6 +327,11 @@ class IflytekAsrEngine(
         state = State.IDLE
 
         callback.onStop()
+
+        // Immediately preconnect for the next question — eliminates 300-500ms handshake
+        // on the next startListening() call
+        Log.i(TAG, "stopListening: triggering preconnect for next session")
+        preconnect()
     }
 
     // ================================================================
