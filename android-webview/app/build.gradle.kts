@@ -17,10 +17,14 @@ android {
 
     signingConfigs {
         getByName("debug") {
-            storeFile = file("/tmp/android-keystore/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            val keystoreFile = file("/tmp/android-keystore/debug.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+            // If custom keystore doesn't exist (e.g. CI), Android default debug keystore is used
         }
     }
 
