@@ -54,7 +54,7 @@ class IflytekAsrEngine(
         private const val SEND_INTERVAL_MS = 20L  // faster frame interval
         private const val CONNECT_TIMEOUT_SEC = 5L  // reduced from 10s since we preconnect
         private const val MAX_AUDIO_SECONDS = 60
-        private const val PRECONNECT_IDLE_MS = 25_000L  // server may close idle WS after ~30s
+        private const val PRECONNECT_IDLE_MS = 12_000L  // server closes idle WS after ~15s, keep under that
     }
 
     interface Callback {
@@ -163,6 +163,12 @@ class IflytekAsrEngine(
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
+                    // Auto-reconnect preconnect after 500ms
+                    Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
+                    executor.submit {
+                        Thread.sleep(500)
+                        preconnect()
+                    }
                 }
             }
 
@@ -171,6 +177,12 @@ class IflytekAsrEngine(
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
+                    // Auto-reconnect preconnect after 500ms so it's ready when user speaks
+                    Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
+                    executor.submit {
+                        Thread.sleep(500)
+                        preconnect()
+                    }
                 }
                 preconnectLatch?.countDown()
             }
@@ -178,9 +190,14 @@ class IflytekAsrEngine(
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 val msg = response?.let { "HTTP ${it.code}: ${it.message}" } ?: t.message ?: "unknown"
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
-                    Log.w(TAG, "Preconnect: failed: $msg")
+                    Log.w(TAG, "Preconnect: failed: $msg, auto-reconnecting in 2s...")
                     state = State.IDLE
                     webSocket = null
+                    // Retry preconnect after delay (longer delay for failures)
+                    executor.submit {
+                        Thread.sleep(2000)
+                        preconnect()
+                    }
                 } else if (state == State.LISTENING) {
                     Log.e(TAG, "WebSocket failure during session: $msg", t)
                     callback.onError("iflytek-connection: $msg")
@@ -191,13 +208,13 @@ class IflytekAsrEngine(
         })
 
         // Auto-expire preconnection if idle too long (server may close it)
+        // Closing the WS triggers onClosed which will auto-reconnect
         executor.submit {
             Thread.sleep(PRECONNECT_IDLE_MS)
             if (state == State.PRECONNECTED) {
-                Log.d(TAG, "Preconnect: idle timeout, closing")
+                Log.d(TAG, "Preconnect: idle timeout, closing (will auto-reconnect)")
                 try { webSocket?.close(1000, "idle timeout") } catch (_: Exception) {}
-                state = State.IDLE
-                webSocket = null
+                // Don't set state here — onClosed callback handles state reset + auto-reconnect
             }
         }
     }
