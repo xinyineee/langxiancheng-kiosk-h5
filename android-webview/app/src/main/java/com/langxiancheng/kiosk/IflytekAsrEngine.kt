@@ -33,11 +33,12 @@ import okio.ByteString
  * Audio: 16kHz, 16bit, mono PCM (L16;rate=16000)
  * Auth: HMAC-SHA256 signature in URL query string
  *
- * v3.1 — WebSocket preconnect optimization:
- * - Preconnect WebSocket during page load to eliminate TLS+handshake latency (~300-500ms)
+ * v3.5 — Optimized session management:
+ * - Preconnect WebSocket during page load to eliminate TLS+handshake latency
  * - Shared OkHttpClient with connection pooling for TCP/TLS reuse
- * - Faster frame interval (20ms instead of 40ms) for quicker first-token response
- * - Re-enabled dwa=wpgs for dynamic correction
+ * - wsGeneration counter prevents stale WS listener callbacks from interfering
+ * - stopListening closes WS and immediately preconnects for next session
+ * - iFlytek does NOT support session reuse on same WS — must close and reconnect
  */
 class IflytekAsrEngine(
     private val appId: String,
@@ -50,11 +51,11 @@ class IflytekAsrEngine(
         private const val HOST = "iat-api.xfyun.cn"
         private const val PATH = "/v2/iat"
         private const val SAMPLE_RATE = 16000
-        private const val FRAME_SIZE = 640   // 20ms of 16kHz 16bit mono PCM (was 1280/40ms)
-        private const val SEND_INTERVAL_MS = 20L  // faster frame interval
-        private const val CONNECT_TIMEOUT_SEC = 5L  // reduced from 10s since we preconnect
+        private const val FRAME_SIZE = 640   // 20ms of 16kHz 16bit mono PCM
+        private const val SEND_INTERVAL_MS = 20L
+        private const val CONNECT_TIMEOUT_SEC = 5L
         private const val MAX_AUDIO_SECONDS = 60
-        private const val PRECONNECT_IDLE_MS = 12_000L  // server closes idle WS after ~15s, keep under that
+        private const val PRECONNECT_IDLE_MS = 12_000L  // server closes idle WS after ~15s
     }
 
     interface Callback {
@@ -63,25 +64,21 @@ class IflytekAsrEngine(
         fun onResult(text: String)
         fun onError(error: String)
         fun onStop()
-        fun onVolume(dB: Double)  // real-time volume in dB (typically -80..0)
+        fun onVolume(dB: Double)
     }
 
-    enum class State { IDLE, PRECONNECTING, PRECONNECTED, LISTENING, SESSION_ENDED }
-    // SESSION_ENDED = WS still open but session ended (status=2 sent), ready for instant reuse
+    enum class State { IDLE, PRECONNECTING, PRECONNECTED, LISTENING }
 
     private var state = State.IDLE
     private var webSocket: WebSocket? = null
     private var audioRecord: AudioRecord? = null
     private var isListening = false
-    private val audioQueue = LinkedBlockingQueue<ByteArray>(512)  // doubled for faster frame rate
+    private val audioQueue = LinkedBlockingQueue<ByteArray>(512)
     private val executor: ExecutorService = Executors.newFixedThreadPool(3)
 
-    // Generation counter to prevent stale WS listener callbacks from interfering with new connections
+    // Generation counter — prevents stale WS callbacks from interfering with new connections
+    // Critical because WS close is async: old WS onClosed fires after new WS is created
     private var wsGeneration = 0L
-
-    // Idle timeout for SESSION_ENDED state — close WS after 10s if not reused
-    private var wsIdleFuture: java.util.concurrent.ScheduledFuture<*>? = null
-    private val wsScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
 
     // Dynamic correction (dwa=wpgs) state
     private val resultHistory = mutableMapOf<Int, String>()
@@ -89,7 +86,7 @@ class IflytekAsrEngine(
     // Shared OkHttpClient with connection pooling — reuse TCP/TLS across sessions
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectionPool(ConnectionPool(2, 5, TimeUnit.MINUTES))  // 2 idle conns, 5min keepalive
+            .connectionPool(ConnectionPool(2, 5, TimeUnit.MINUTES))
             .connectTimeout(CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MINUTES)
             .writeTimeout(10, TimeUnit.SECONDS)
@@ -100,16 +97,16 @@ class IflytekAsrEngine(
     // Latch for preconnect completion
     private var preconnectLatch: CountDownLatch? = null
 
-    /**
-     * Build the authenticated WebSocket URL with HMAC-SHA256 signature.
-     */
+    // ================================================================
+    // Auth URL generation
+    // ================================================================
+
     private fun buildAuthUrl(): String {
         val date = generateRfc1123Date()
         val signatureOrigin = "host: $HOST\ndate: $date\nGET $PATH HTTP/1.1"
         val signature = hmacSha256(apiSecret, signatureOrigin)
         val authorizationOrigin = "api_key=\"$apiKey\", algorithm=\"hmac-sha256\", headers=\"host date request-line\", signature=\"$signature\""
         val authorization = Base64.encodeToString(authorizationOrigin.toByteArray(), Base64.NO_WRAP)
-
         return "wss://$HOST$PATH?authorization=$authorization&date=${URLEncoder.encode(date, "UTF-8")}&host=$HOST"
     }
 
@@ -130,11 +127,6 @@ class IflytekAsrEngine(
     // Preconnect — establish WebSocket before user starts speaking
     // ================================================================
 
-    /**
-     * Pre-connect WebSocket to iFlytek server.
-     * Call this when the page loads or before the user is expected to speak.
-     * Eliminates ~300-500ms of TLS + WebSocket handshake latency.
-     */
     fun preconnect() {
         if (state != State.IDLE) {
             Log.d(TAG, "preconnect: skipping, state=$state")
@@ -142,7 +134,7 @@ class IflytekAsrEngine(
         }
         state = State.PRECONNECTING
         preconnectLatch = CountDownLatch(1)
-        val gen = ++wsGeneration  // bump generation so stale WS callbacks are ignored
+        val gen = ++wsGeneration
 
         val url = buildAuthUrl()
         Log.i(TAG, "Preconnecting to iFlytek IAT (gen=$gen)...")
@@ -163,12 +155,10 @@ class IflytekAsrEngine(
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
-                if (wsGeneration != gen) return  // stale listener
-                // If state is LISTENING, this WebSocket is being reused for an active session
+                if (wsGeneration != gen) return
                 if (state == State.LISTENING) {
                     handleServerMessage(text)
                 } else {
-                    // During preconnect, server shouldn't send messages yet
                     Log.w(TAG, "Preconnect: unexpected message: $text")
                 }
             }
@@ -176,68 +166,47 @@ class IflytekAsrEngine(
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "Preconnect: WebSocket closing: $code $reason (gen=$gen)")
                 ws.close(1000, null)
-                if (wsGeneration != gen) return  // stale listener, don't interfere with new WS
+                if (wsGeneration != gen) return
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
-                    // Auto-reconnect preconnect after 500ms
                     Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
                     executor.submit {
                         Thread.sleep(500)
                         preconnect()
                     }
-                } else if (state == State.SESSION_ENDED) {
-                    // Server closed WS between questions — will reconnect on next startListening
-                    Log.i(TAG, "WS closed while SESSION_ENDED, marking IDLE for reconnect")
-                    state = State.IDLE
-                    webSocket = null
-                    cancelWsIdleTimeout()
                 }
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "Preconnect: WebSocket closed: $code $reason (gen=$gen)")
                 if (wsGeneration != gen) {
-                    // Stale WS closed — don't touch state, new WS already active
                     preconnectLatch?.countDown()
                     return
                 }
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
-                    // Auto-reconnect preconnect after 500ms so it's ready when user speaks
                     Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
                     executor.submit {
                         Thread.sleep(500)
                         preconnect()
                     }
-                } else if (state == State.SESSION_ENDED) {
-                    // Server closed WS between questions
-                    Log.i(TAG, "WS closed while SESSION_ENDED, marking IDLE for reconnect")
-                    state = State.IDLE
-                    webSocket = null
-                    cancelWsIdleTimeout()
                 }
                 preconnectLatch?.countDown()
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 val msg = response?.let { "HTTP ${it.code}: ${it.message}" } ?: t.message ?: "unknown"
-                if (wsGeneration != gen) return  // stale listener
+                if (wsGeneration != gen) return
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     Log.w(TAG, "Preconnect: failed: $msg, auto-reconnecting in 2s...")
                     state = State.IDLE
                     webSocket = null
-                    // Retry preconnect after delay (longer delay for failures)
                     executor.submit {
                         Thread.sleep(2000)
                         preconnect()
                     }
-                } else if (state == State.SESSION_ENDED) {
-                    Log.w(TAG, "WS failure while SESSION_ENDED: $msg, marking IDLE for reconnect")
-                    state = State.IDLE
-                    webSocket = null
-                    cancelWsIdleTimeout()
                 } else if (state == State.LISTENING) {
                     Log.e(TAG, "WebSocket failure during session: $msg", t)
                     isListening = false
@@ -252,33 +221,21 @@ class IflytekAsrEngine(
         })
 
         // Auto-expire preconnection if idle too long (server may close it)
-        // Closing the WS triggers onClosed which will auto-reconnect
         executor.submit {
             Thread.sleep(PRECONNECT_IDLE_MS)
             if (state == State.PRECONNECTED) {
                 Log.d(TAG, "Preconnect: idle timeout, closing (will auto-reconnect)")
                 try { webSocket?.close(1000, "idle timeout") } catch (_: Exception) {}
-                // Don't set state here — onClosed callback handles state reset + auto-reconnect
             }
         }
     }
 
-    /**
-     * Whether the engine has a pre-connected WebSocket ready to use.
-     */
     val isPreconnected: Boolean get() = state == State.PRECONNECTED
 
     // ================================================================
     // Start / Stop listening
     // ================================================================
 
-    /**
-     * Start ASR session. Fast paths:
-     * - SESSION_ENDED: reuse existing WS (zero handshake delay!)
-     * - PRECONNECTED: use preconnected WS
-     * - PRECONNECTING: wait for preconnect
-     * - IDLE: connect fresh
-     */
     fun startListening() {
         if (isListening) {
             Log.w(TAG, "Already listening, ignoring startListening")
@@ -286,18 +243,7 @@ class IflytekAsrEngine(
         }
 
         when (state) {
-            State.SESSION_ENDED -> {
-                // ✅✅ Fastest path: WS already open from previous session, just start new session
-                Log.i(TAG, "startListening: reusing existing WebSocket ✓✓✓ (zero handshake)")
-                cancelWsIdleTimeout()
-                isListening = true
-                resultHistory.clear()
-                state = State.LISTENING
-                callback.onStart()
-                startAudioRecording()
-            }
             State.PRECONNECTED -> {
-                // ✅ Good: WebSocket already open, start audio immediately
                 Log.i(TAG, "startListening: using preconnected WebSocket ✓")
                 isListening = true
                 resultHistory.clear()
@@ -306,7 +252,6 @@ class IflytekAsrEngine(
                 startAudioRecording()
             }
             State.PRECONNECTING -> {
-                // Wait for preconnect to complete (max 3s)
                 Log.i(TAG, "startListening: waiting for preconnect to complete...")
                 isListening = true
                 resultHistory.clear()
@@ -317,23 +262,18 @@ class IflytekAsrEngine(
                     callback.onStart()
                     startAudioRecording()
                 } else {
-                    // Preconnect failed or timed out, fall back to fresh connection
                     Log.w(TAG, "startListening: preconnect not ready, falling back to fresh connect")
                     isListening = false
                     connectAndListen()
                 }
             }
             else -> {
-                // No preconnection available, connect fresh
                 Log.i(TAG, "startListening: no preconnection, connecting fresh")
                 connectAndListen()
             }
         }
     }
 
-    /**
-     * Original connect-then-listen flow (fallback when no preconnection).
-     */
     private fun connectAndListen() {
         if (isListening) return
         isListening = true
@@ -348,9 +288,14 @@ class IflytekAsrEngine(
     }
 
     /**
-     * Stop ASR session: stop audio, send final frame (status=2).
-     * Keeps WebSocket open for instant reuse on next question (SESSION_ENDED state).
-     * This eliminates the 300-500ms WS handshake between quiz questions.
+     * Stop ASR session: stop audio, send final frame, close WS, then preconnect for next session.
+     *
+     * IMPORTANT: iFlytek does NOT support session reuse on same WebSocket.
+     * Each session must use a fresh WS connection. After closing the current WS,
+     * we immediately preconnect a new one so it's ready for the next question.
+     *
+     * The wsGeneration counter ensures the old WS's async callbacks (onClosed etc.)
+     * don't interfere with the new preconnect's state machine.
      */
     fun stopListening() {
         if (!isListening) return
@@ -375,25 +320,28 @@ class IflytekAsrEngine(
             Log.w(TAG, "Failed to send final frame", e)
         }
 
-        // Keep WebSocket open — transition to SESSION_ENDED instead of closing
-        state = State.SESSION_ENDED
+        // Close WebSocket — iFlytek requires a fresh WS per session
+        try {
+            webSocket?.close(1000, "session ended")
+        } catch (_: Exception) {}
+        webSocket = null
+        state = State.IDLE
+
         callback.onStop()
 
-        // Schedule idle timeout: if WS not reused within 10s, close and preconnect fresh
-        // (iFlytek server closes idle WS after ~15s)
-        scheduleWsIdleTimeout()
-
-        Log.i(TAG, "stopListening: session ended, WS kept open for reuse")
+        // Immediately preconnect for the next question
+        // With wsGeneration protection, the old WS's async onClosed won't interfere
+        Log.i(TAG, "stopListening: closed WS, preconnecting for next session")
+        preconnect()
     }
 
     // ================================================================
-    // WebSocket listener for active sessions
+    // WebSocket listener for active sessions (connectAndListen fallback)
     // ================================================================
 
     private fun createSessionWsListener(): WebSocketListener {
         return object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
-                val elapsed = if (isListening) "" else ""
                 Log.i(TAG, "WebSocket connected, starting audio capture")
                 callback.onStart()
                 startAudioRecording()
@@ -403,9 +351,7 @@ class IflytekAsrEngine(
                 handleServerMessage(text)
             }
 
-            override fun onMessage(ws: WebSocket, bytes: ByteString) {
-                // iFlytek always sends text frames
-            }
+            override fun onMessage(ws: WebSocket, bytes: ByteString) {}
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closing: $code $reason")
@@ -414,7 +360,9 @@ class IflytekAsrEngine(
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket closed: $code $reason")
-                stopListening()
+                if (isListening) {
+                    stopListening()
+                }
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
@@ -445,11 +393,10 @@ class IflytekAsrEngine(
 
             val data = json.optJSONObject("data") ?: return
             val result = data.optJSONObject("result") ?: return
-            val status = data.optInt("status", 0)  // 0=first, 1=middle, 2=last
+            val status = data.optInt("status", 0)
             val sn = result.optInt("sn", 0)
             val ls = result.optBoolean("ls", false)
 
-            // Extract text from ws[].cw[].w
             val sb = StringBuilder()
             val ws = result.optJSONArray("ws") ?: return
             for (i in 0 until ws.length()) {
@@ -488,18 +435,16 @@ class IflytekAsrEngine(
 
             if (status == 2) {
                 Log.i(TAG, "Server sent status=2, session complete")
-                // Server-initiated end of session (VAD silence detection, etc.)
-                // Transition to SESSION_ENDED but keep WS open for reuse
+                // Server-initiated end (VAD silence detection, etc.)
                 if (isListening) {
                     isListening = false
                     stopAudioRecording()
-                    state = State.SESSION_ENDED
+                    state = State.IDLE
                     callback.onStop()
-                    scheduleWsIdleTimeout()
-                    Log.i(TAG, "Server-initiated stop, WS kept open for reuse")
+                    // Preconnect for next session
+                    preconnect()
+                    Log.i(TAG, "Server-initiated stop, preconnecting for next session")
                 }
-                // If already in SESSION_ENDED (our stopListening sent status=2 first),
-                // this is just the server's acknowledgment — ignore
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse iFlytek message: $text", e)
@@ -538,7 +483,6 @@ class IflytekAsrEngine(
                 var totalSent = 0
                 val maxBytes = MAX_AUDIO_SECONDS * SAMPLE_RATE * 2
 
-                // Volume reporting state (throttled to ~10Hz)
                 var lastVolumeTime = 0L
                 var rmsAccum = 0.0
                 var rmsCount = 0
@@ -547,7 +491,6 @@ class IflytekAsrEngine(
                     val read = audioRecord?.read(buffer, 0, FRAME_SIZE) ?: -1
                     if (read <= 0) continue
 
-                    // Calculate RMS for volume feedback (accumulate over ~100ms)
                     var sum = 0.0
                     for (i in 0 until read step 2) {
                         val sample = (buffer[i].toInt() and 0xFF) or (buffer[i + 1].toInt() shl 8)
@@ -581,7 +524,6 @@ class IflytekAsrEngine(
 
             // WebSocket send thread
             executor.submit {
-                // Wait for first audio chunk
                 val firstAudio = audioQueue.poll(2, TimeUnit.SECONDS)
                 if (firstAudio == null) {
                     Log.w(TAG, "No audio data received, aborting")
@@ -589,16 +531,16 @@ class IflytekAsrEngine(
                     return@submit
                 }
 
-                // Send first frame with common+business+data
+                // First frame: common + business + data (status=0)
                 val firstFrame = JSONObject().apply {
                     put("common", JSONObject().apply { put("app_id", appId) })
                     put("business", JSONObject().apply {
                         put("language", "zh_cn")
                         put("domain", "iat")
                         put("accent", "mandarin")
-                        put("ptt", 1)            // add punctuation
-                        put("dwa", "wpgs")        // dynamic correction (re-enabled)
-                        put("nbest", 1)           // top-1 result
+                        put("ptt", 1)
+                        put("dwa", "wpgs")
+                        put("nbest", 1)
                     })
                     put("data", JSONObject().apply {
                         put("status", 0)
@@ -615,7 +557,7 @@ class IflytekAsrEngine(
                 }
                 Log.d(TAG, "Sent first audio frame (${firstAudio.size} bytes)")
 
-                // Send middle frames (status=1) at faster interval
+                // Middle frames (status=1)
                 while (isListening) {
                     val audioData = audioQueue.poll(SEND_INTERVAL_MS + 5, TimeUnit.MILLISECONDS)
                         ?: continue
@@ -650,43 +592,13 @@ class IflytekAsrEngine(
         audioQueue.clear()
     }
 
-    /**
-     * Schedule idle timeout for SESSION_ENDED state.
-     * If the WS isn't reused within 10s, close it and preconnect fresh.
-     * (iFlytek server closes idle WS after ~15s)
-     */
-    private fun scheduleWsIdleTimeout() {
-        cancelWsIdleTimeout()
-        wsIdleFuture = wsScheduler.schedule({
-            if (state == State.SESSION_ENDED) {
-                Log.i(TAG, "WS idle timeout (10s), closing and preconnecting fresh")
-                try { webSocket?.close(1000, "idle timeout") } catch (_: Exception) {}
-                webSocket = null
-                state = State.IDLE
-                preconnect()
-            }
-        }, 10, TimeUnit.SECONDS)
-    }
-
-    private fun cancelWsIdleTimeout() {
-        wsIdleFuture?.cancel(false)
-        wsIdleFuture = null
-    }
-
-    /**
-     * Release all resources. Call when activity is destroyed.
-     */
     fun destroy() {
-        cancelWsIdleTimeout()
         stopListening()
-        // Close any remaining WS
         try { webSocket?.close(1000, "destroy") } catch (_: Exception) {}
         webSocket = null
         state = State.IDLE
         executor.shutdown()
-        wsScheduler.shutdown()
         try { executor.awaitTermination(3, TimeUnit.SECONDS) } catch (_: Exception) {}
-        try { wsScheduler.awaitTermination(1, TimeUnit.SECONDS) } catch (_: Exception) {}
         httpClient.dispatcher.executorService.shutdown()
         httpClient.connectionPool.evictAll()
     }
