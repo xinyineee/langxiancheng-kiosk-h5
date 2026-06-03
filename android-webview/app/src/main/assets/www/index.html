@@ -195,8 +195,8 @@ function initWebASR(){if(asrRecognition||asrBridge)return;const SR=window.Speech
 function startASR(){if(isListening||asrMatched)return;if(asrBridge){try{asrBridge.startListening('zh-CN');setASRStatus('listening')}catch(e){setASRStatus('error')}return}initWebASR();if(asrRecognition){try{asrRecognition.start()}catch(e){}}else setASRStatus('error')}
 function stopASR(){asrAuto=false;if(asrBridge){try{asrBridge.stopListening()}catch(e){}}if(asrRecognition&&isListening){try{asrRecognition.stop()}catch(e){}}isListening=false}
 function toggleASR(){asrAuto=!isListening;if(isListening)stopASR();else{asrMatched=false;asrAuto=true;startASR()}}
-function enableAutoASR(){asrMatched=false;asrAuto=true;setTimeout(startASR,350)}
-function handleASRText(text,partial=false){if(!text||asrMatched)return;if(partial)setASRStatus('partial',text);const choice=parseASRChoice(text);if(choice!==null){asrMatched=true;asrAuto=false;const optLabel=questions[idx]?.opts[choice]?.[1]||['A','B','C','D'][choice];setASRStatus('matched',optLabel);setTimeout(()=>choose(choice),220)}}
+function enableAutoASR(){asrMatched=false;asrAuto=true;setTimeout(startASR,100)}
+function handleASRText(text,partial=false){if(!text||asrMatched)return;if(partial)setASRStatus('partial',text);const choice=parseASRChoice(text);if(choice!==null){asrMatched=true;asrAuto=false;const optLabel=questions[idx]?.opts[choice]?.[1]||['A','B','C','D'][choice];setASRStatus('matched',optLabel);setTimeout(()=>choose(choice),80)}}
 window._asrOnVolume=function(dB){const fill=document.getElementById('volFill');if(!fill)return;const pct=dB>-20?100:dB>-40?Math.round((dB+40)/20*100):dB>-60?Math.round((dB+60)/20*40):Math.round((dB+80)/20*15);fill.style.width=Math.max(0,Math.min(100,pct))+'%'};
 /* ==================== Pinyin Fuzzy Matcher ==================== */
 const PinyinMatcher=(()=>{
@@ -211,24 +211,23 @@ function editDist(a,b){if(a===b)return 0;const m=a.length,n=b.length;const d=Arr
 function similarity(a,b){if(!a||!b)return 0;if(a===b)return 1;const d=editDist(a,b);return 1-d/Math.max(a.length,b.length)}
 return{toPinyin,editDist,similarity}
 })();
-// Enhanced ASR choice parser with fuzzy matching
+// Enhanced ASR choice parser with multi-strategy fuzzy matching
 function parseASRChoice(raw){const text=String(raw).toLowerCase().replace(/\s/g,'');if(!text)return null;
 // 1. Exact letter/number matching (highest priority)
 const letters=['a','b','c','d'];for(let i=0;i<4;i++){if(text===letters[i]||text.includes('选'+letters[i])||text.includes('选项'+letters[i])||text.includes(['一','二','三','四'][i])||text.includes(String(i+1)))return i}
 // 2. Phonetic letter matching (ASR often misrecognizes letters)
 const phoneMap=[['诶','欸','a','ei','第一','一个','一样','伊'],['比','逼','b','bi','第二','二个','二'],['西','息','希','c','xi','第三','三个','三'],['第','滴','地','d','di','第四','四个','四']];for(let i=0;i<4;i++){if(phoneMap[i].some(k=>text.includes(k)))return i}
-// 3. Exact substring match on option text (current logic, high priority)
+// 3. Exact substring match on option text
 const q=questions[idx];if(q){for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const name=String(o[1]).replace(/\s/g,'');const sub=String(o[2]).replace(/\s/g,'');if(text.includes(name)||text.includes(sub))return i}}
-// 4. Pinyin fuzzy matching (handles ASR homophone errors)
-if(q){const textPy=PinyinMatcher.toPinyin(raw);let bestIdx=-1,bestScore=0.5;// threshold: must be >50% similar
-for(let i=0;i<q.opts.length;i++){const o=q.opts[i];// Build full option text (emoji name + subtitle)
-const optText=String(o[1])+' '+String(o[2]);const optPy=PinyinMatcher.toPinyin(optText);const score=PinyinMatcher.similarity(textPy,optPy);if(score>bestScore){bestScore=score;bestIdx=i}
-// Also check each keyword individually
-const words=String(o[1]).replace(/\s/g,'').split('').join(' ');// char by char
-const wordPy=PinyinMatcher.toPinyin(String(o[1]));const s2=PinyinMatcher.similarity(textPy,wordPy);if(s2>bestScore){bestScore=s2;bestIdx=i}}
-if(bestIdx>=0)return bestIdx}
-// 5. Partial pinyin match (check if ASR text pinyin contains option pinyin substring)
-if(q){const textPy=PinyinMatcher.toPinyin(raw);for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const namePy=PinyinMatcher.toPinyin(String(o[1]));const subPy=PinyinMatcher.toPinyin(String(o[2]));if(namePy&&textPy.includes(namePy))return i;if(subPy&&textPy.includes(subPy))return i}}
+// 4. Character overlap scoring — what % of option's key chars appear in ASR text?
+// This handles filler words, word reorder, and partial matches robustly
+if(q){let bestIdx=-1,bestScore=0.3;for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const name=String(o[1]).replace(/\s/g,'');const sub=String(o[2]).replace(/\s/g,'');const allChars=(name+sub).split('');const unique=[...new Set(allChars.filter(c=>!/[a-zA-Z0-9\s]/.test(c)))];if(unique.length===0)continue;const hit=unique.filter(c=>text.includes(c)).length;const score=hit/unique.length;if(score>bestScore){bestScore=score;bestIdx=i}}if(bestIdx>=0)return bestIdx}
+// 5. Pinyin syllable token matching — check if ASR pinyin contains all syllables of any option
+if(q){const textPy=PinyinMatcher.toPinyin(raw);const textTokens=textPy.split(/\s+/).filter(t=>t.length>0);let bestIdx=-1,bestScore=0.4;for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const namePy=PinyinMatcher.toPinyin(String(o[1]));const subPy=PinyinMatcher.toPinyin(String(o[2]));const optTokens=(namePy+' '+subPy).split(/\s+/).filter(t=>t.length>1);if(optTokens.length===0)continue;const hit=optTokens.filter(t=>textTokens.some(tt=>tt===t||tt.includes(t)||t.includes(tt))).length;const score=hit/optTokens.length;if(score>bestScore){bestScore=score;bestIdx=i}}if(bestIdx>=0)return bestIdx}
+// 6. Pinyin fuzzy similarity (Levenshtein, lower threshold for leniency)
+if(q){const textPy=PinyinMatcher.toPinyin(raw);let bestIdx=-1,bestScore=0.35;for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const optText=String(o[1])+' '+String(o[2]);const optPy=PinyinMatcher.toPinyin(optText);const score=PinyinMatcher.similarity(textPy,optPy);if(score>bestScore){bestScore=score;bestIdx=i}const wordPy=PinyinMatcher.toPinyin(String(o[1]));const s2=PinyinMatcher.similarity(textPy,wordPy);if(s2>bestScore){bestScore=s2;bestIdx=i}}if(bestIdx>=0)return bestIdx}
+// 7. Common ASR confusion mapping — specific known misrecognitions
+if(q){const confusions={'苏醒':['属性','苏星','舒心','书型','输型','属行','数形'],'狠狠干':['狠狠肝','很很干','狠狠赶','痕痕干'],'慢慢来':['漫漫来','曼曼来'],'开冲':['开冲','开聪','开窗','开春'],'清爽':['轻爽','青爽','清赏','轻想'],'浓郁':['农郁','浓玉','农玉','浓欲'],'温暖':['温暧','文暖'],'焦糖':['交糖','胶糖','娇糖','焦唐'],'冲进雾里':['冲进物理','冲进无理','冲进屋里'],'先看地图':['先看地度','先看帝都'],'边走边看':['边走边看','变走边看'],'等雾散':['等物散','等无散','等五散'],'火把':['或把','货把','获把'],'罗盘':['落盘','螺盘','落胖'],'日记':['日际','日积','日机','日击'],'咖啡':['加非','家非','咖妃','卡费'],'浪':['朗','郎','狼','莨'],'险':['显','鲜','仙','线','先','羡','献','县','限'],'成':['城','程','诚','乘','盛','呈','秤'],'全都要':['全都耀','全多要','权都要','全都药']};for(let i=0;i<q.opts.length;i++){const o=q.opts[i];const name=String(o[1]).replace(/\s/g,'');const sub=String(o[2]).replace(/\s/g,'');const keys=[name,sub];for(const k of keys){if(confusions[k]){if(confusions[k].some(c=>text.includes(c)))return i}}}}
 return null}
 window._asrOnEngineReady=function(){};
 window._asrOnStart=function(){isListening=true;resetIdle();setASRStatus('listening');SFX.listen()};
