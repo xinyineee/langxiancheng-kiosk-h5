@@ -75,6 +75,9 @@ class IflytekAsrEngine(
     private val audioQueue = LinkedBlockingQueue<ByteArray>(512)  // doubled for faster frame rate
     private val executor: ExecutorService = Executors.newFixedThreadPool(3)
 
+    // Generation counter to prevent stale WS listener callbacks from interfering with new connections
+    private var wsGeneration = 0L
+
     // Dynamic correction (dwa=wpgs) state
     private val resultHistory = mutableMapOf<Int, String>()
 
@@ -134,14 +137,20 @@ class IflytekAsrEngine(
         }
         state = State.PRECONNECTING
         preconnectLatch = CountDownLatch(1)
+        val gen = ++wsGeneration  // bump generation so stale WS callbacks are ignored
 
         val url = buildAuthUrl()
-        Log.i(TAG, "Preconnecting to iFlytek IAT...")
+        Log.i(TAG, "Preconnecting to iFlytek IAT (gen=$gen)...")
 
         val request = Request.Builder().url(url).build()
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
-                Log.i(TAG, "Preconnect: WebSocket open ✓")
+                if (wsGeneration != gen) {
+                    Log.w(TAG, "Preconnect: stale onOpen (gen=$gen, current=$wsGeneration), ignoring")
+                    try { ws.close(1000, "stale") } catch (_: Exception) {}
+                    return
+                }
+                Log.i(TAG, "Preconnect: WebSocket open ✓ (gen=$gen)")
                 if (state == State.PRECONNECTING) {
                     state = State.PRECONNECTED
                 }
@@ -149,6 +158,7 @@ class IflytekAsrEngine(
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
+                if (wsGeneration != gen) return  // stale listener
                 // If state is LISTENING, this WebSocket is being reused for an active session
                 if (state == State.LISTENING) {
                     handleServerMessage(text)
@@ -159,8 +169,9 @@ class IflytekAsrEngine(
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
-                Log.d(TAG, "Preconnect: WebSocket closing: $code $reason")
+                Log.d(TAG, "Preconnect: WebSocket closing: $code $reason (gen=$gen)")
                 ws.close(1000, null)
+                if (wsGeneration != gen) return  // stale listener, don't interfere with new WS
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
@@ -174,7 +185,12 @@ class IflytekAsrEngine(
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                Log.i(TAG, "Preconnect: WebSocket closed: $code $reason")
+                Log.i(TAG, "Preconnect: WebSocket closed: $code $reason (gen=$gen)")
+                if (wsGeneration != gen) {
+                    // Stale WS closed — don't touch state, new WS already active
+                    preconnectLatch?.countDown()
+                    return
+                }
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     state = State.IDLE
                     webSocket = null
@@ -190,6 +206,7 @@ class IflytekAsrEngine(
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 val msg = response?.let { "HTTP ${it.code}: ${it.message}" } ?: t.message ?: "unknown"
+                if (wsGeneration != gen) return  // stale listener
                 if (state == State.PRECONNECTED || state == State.PRECONNECTING) {
                     Log.w(TAG, "Preconnect: failed: $msg, auto-reconnecting in 2s...")
                     state = State.IDLE
