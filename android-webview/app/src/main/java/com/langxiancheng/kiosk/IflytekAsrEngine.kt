@@ -63,6 +63,7 @@ class IflytekAsrEngine(
         fun onResult(text: String)
         fun onError(error: String)
         fun onStop()
+        fun onVolume(dB: Double)  // real-time volume in dB (typically -80..0)
     }
 
     enum class State { IDLE, PRECONNECTING, PRECONNECTED, LISTENING, STOPPING }
@@ -469,9 +470,34 @@ class IflytekAsrEngine(
                 var totalSent = 0
                 val maxBytes = MAX_AUDIO_SECONDS * SAMPLE_RATE * 2
 
+                // Volume reporting state (throttled to ~10Hz)
+                var lastVolumeTime = 0L
+                var rmsAccum = 0.0
+                var rmsCount = 0
+
                 while (isListening && totalSent < maxBytes) {
                     val read = audioRecord?.read(buffer, 0, FRAME_SIZE) ?: -1
                     if (read <= 0) continue
+
+                    // Calculate RMS for volume feedback (accumulate over ~100ms)
+                    var sum = 0.0
+                    for (i in 0 until read step 2) {
+                        val sample = (buffer[i].toInt() and 0xFF) or (buffer[i + 1].toInt() shl 8)
+                        val s = sample.toShort().toDouble()
+                        sum += s * s
+                    }
+                    rmsAccum += sum / (read / 2)
+                    rmsCount++
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastVolumeTime >= 100 && rmsCount > 0) {
+                        val rms = Math.sqrt(rmsAccum / rmsCount)
+                        val dB = if (rms > 0) 20 * Math.log10(rms / 32768.0) else -80.0
+                        callback.onVolume(dB.coerceIn(-80.0, 0.0))
+                        lastVolumeTime = now
+                        rmsAccum = 0.0
+                        rmsCount = 0
+                    }
 
                     if (!audioQueue.offer(buffer.copyOf())) {
                         Log.w(TAG, "Audio queue full, dropping frame")

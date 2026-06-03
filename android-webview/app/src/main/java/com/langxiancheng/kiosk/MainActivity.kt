@@ -304,6 +304,8 @@ class MainActivity : AppCompatActivity() {
                         val elapsed = System.currentTimeMillis() - sessionStartTime
                         Log.i(TAG, "iFlytek ASR session ended [${elapsed}ms], autoContinue=$autoContinue")
                         iflytekActive = false
+                        // Reset volume to silence when session ends
+                        runJs("window._asrOnVolume(-80)")
                         runJs("window._asrOnStop()")
 
                         // Auto-restart: skip HTML round-trip, start new session immediately
@@ -329,6 +331,11 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }, 500)
                         }
+                    }
+
+                    override fun onVolume(dB: Double) {
+                        // Throttled by engine (~10Hz), safe to forward directly
+                        runJs("window._asrOnVolume($dB)")
                     }
                 }
             )
