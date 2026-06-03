@@ -11,8 +11,8 @@ android {
         applicationId = "com.langxiancheng.kiosk"
         minSdk = 21
         targetSdk = 35
-        versionCode = 9
-        versionName = "3.0.0"
+        versionCode = 10
+        versionName = "3.1.0"
     }
 
     signingConfigs {

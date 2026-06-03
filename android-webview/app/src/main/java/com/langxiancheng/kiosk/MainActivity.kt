@@ -124,7 +124,14 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 // Notify H5 that ASR engine is ready (after JS functions are loaded)
                 when (activeEngine) {
-                    "iflytek" -> runJs("window._asrOnEngineReady('iflytek', 'cloud')")
+                    "iflytek" -> {
+                        runJs("window._asrOnEngineReady('iflytek', 'cloud')")
+                        // Preconnect WebSocket to eliminate ~300-500ms latency on first speech
+                        if (iflytekReady && !iflytekActive) {
+                            iflytekEngine?.preconnect()
+                            Log.i(TAG, "iFlytek WebSocket preconnect triggered on page load")
+                        }
+                    }
                     "android" -> runJs("window._asrOnEngineReady('android', 'fallback')")
                 }
             }
@@ -304,9 +311,23 @@ class MainActivity : AppCompatActivity() {
                             handler.postDelayed({
                                 if (autoContinue && !iflytekActive && iflytekReady) {
                                     Log.i(TAG, "Auto-continuing iFlytek ASR session (0ms HTML delay)")
-                                    iflytekEngine?.startListening()
+                                    iflytekEngine?.preconnect()
+                                    // Small delay for preconnect to establish
+                                    handler.postDelayed({
+                                        if (autoContinue && !iflytekActive) {
+                                            iflytekEngine?.startListening()
+                                        }
+                                    }, 100)
                                 }
-                            }, 200)  // 200ms settle for new WebSocket connection
+                            }, 200)
+                        } else {
+                            // Auto-preconnect for next session (user-initiated)
+                            handler.postDelayed({
+                                if (!iflytekActive && iflytekReady) {
+                                    iflytekEngine?.preconnect()
+                                    Log.d(TAG, "Auto-preconnected for next session")
+                                }
+                            }, 500)
                         }
                     }
                 }
@@ -442,7 +463,7 @@ class MainActivity : AppCompatActivity() {
         fun getEngine(): String = activeEngine
 
         @JavascriptInterface
-        fun getAsrMode(): String = if (activeEngine == "iflytek") "cloud" else "local"
+        fun getAsrMode(): String = if (activeEngine == "iflytek") "cloud-preconnect" else "local"
 
         @JavascriptInterface
         fun startListening(lang: String) {
@@ -491,6 +512,17 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun reportNoMatch() {
             Log.d(TAG, "reportNoMatch: no-op (using iFlytek cloud ASR)")
+        }
+
+        /** H5 can trigger WebSocket preconnect for next session */
+        @JavascriptInterface
+        fun preconnect() {
+            runOnUiThread {
+                if (iflytekReady && !iflytekActive) {
+                    iflytekEngine?.preconnect()
+                    Log.d(TAG, "JSBridge: preconnect triggered by H5")
+                }
+            }
         }
     }
 
