@@ -221,11 +221,15 @@ class IflytekAsrEngine(
         })
 
         // Auto-expire preconnection if idle too long (server may close it)
+        // CRITICAL: capture 'gen' in closure so old timers don't close a newer WS
+        val idleGen = gen
         executor.submit {
             Thread.sleep(PRECONNECT_IDLE_MS)
-            if (state == State.PRECONNECTED) {
-                Log.d(TAG, "Preconnect: idle timeout, closing (will auto-reconnect)")
+            if (state == State.PRECONNECTED && wsGeneration == idleGen) {
+                Log.d(TAG, "Preconnect: idle timeout gen=$idleGen, closing (will auto-reconnect)")
                 try { webSocket?.close(1000, "idle timeout") } catch (_: Exception) {}
+            } else {
+                Log.d(TAG, "Preconnect: idle timeout gen=$idleGen skipped (current gen=$wsGeneration, state=$state)")
             }
         }
     }
