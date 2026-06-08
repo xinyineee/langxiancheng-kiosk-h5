@@ -16,6 +16,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import okhttp3.ConnectionPool
@@ -74,7 +76,10 @@ class IflytekAsrEngine(
     private var audioRecord: AudioRecord? = null
     private var isListening = false
     private val audioQueue = LinkedBlockingQueue<ByteArray>(512)
-    private val executor: ExecutorService = Executors.newFixedThreadPool(3)
+    private val executor: ExecutorService = Executors.newFixedThreadPool(4)
+    // Dedicated scheduler for timers (idle timeout, reconnect delays) — never blocks the main pool
+    private val scheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private var idleTimeoutFuture: ScheduledFuture<*>? = null
 
     // Generation counter — prevents stale WS callbacks from interfering with new connections
     // Critical because WS close is async: old WS onClosed fires after new WS is created
@@ -171,10 +176,7 @@ class IflytekAsrEngine(
                     state = State.IDLE
                     webSocket = null
                     Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
-                    executor.submit {
-                        Thread.sleep(500)
-                        preconnect()
-                    }
+                    scheduler.schedule({ preconnect() }, 500, TimeUnit.MILLISECONDS)
                 }
             }
 
@@ -188,10 +190,7 @@ class IflytekAsrEngine(
                     state = State.IDLE
                     webSocket = null
                     Log.i(TAG, "Preconnect: auto-reconnecting in 500ms...")
-                    executor.submit {
-                        Thread.sleep(500)
-                        preconnect()
-                    }
+                    scheduler.schedule({ preconnect() }, 500, TimeUnit.MILLISECONDS)
                 }
                 preconnectLatch?.countDown()
             }
@@ -203,10 +202,7 @@ class IflytekAsrEngine(
                     Log.w(TAG, "Preconnect: failed: $msg, auto-reconnecting in 2s...")
                     state = State.IDLE
                     webSocket = null
-                    executor.submit {
-                        Thread.sleep(2000)
-                        preconnect()
-                    }
+                    scheduler.schedule({ preconnect() }, 2, TimeUnit.SECONDS)
                 } else if (state == State.LISTENING) {
                     Log.e(TAG, "WebSocket failure during session: $msg", t)
                     isListening = false
@@ -222,16 +218,17 @@ class IflytekAsrEngine(
 
         // Auto-expire preconnection if idle too long (server may close it)
         // CRITICAL: capture 'gen' in closure so old timers don't close a newer WS
+        // Uses dedicated scheduler to avoid blocking the main thread pool
         val idleGen = gen
-        executor.submit {
-            Thread.sleep(PRECONNECT_IDLE_MS)
+        idleTimeoutFuture?.cancel(false)
+        idleTimeoutFuture = scheduler.schedule({
             if (state == State.PRECONNECTED && wsGeneration == idleGen) {
                 Log.d(TAG, "Preconnect: idle timeout gen=$idleGen, closing (will auto-reconnect)")
                 try { webSocket?.close(1000, "idle timeout") } catch (_: Exception) {}
             } else {
                 Log.d(TAG, "Preconnect: idle timeout gen=$idleGen skipped (current gen=$wsGeneration, state=$state)")
             }
-        }
+        }, PRECONNECT_IDLE_MS, TimeUnit.MILLISECONDS)
     }
 
     val isPreconnected: Boolean get() = state == State.PRECONNECTED
@@ -249,6 +246,7 @@ class IflytekAsrEngine(
         when (state) {
             State.PRECONNECTED -> {
                 Log.i(TAG, "startListening: using preconnected WebSocket ✓")
+                idleTimeoutFuture?.cancel(false)  // Cancel idle timer — WS is now in use
                 isListening = true
                 resultHistory.clear()
                 state = State.LISTENING
@@ -601,6 +599,9 @@ class IflytekAsrEngine(
         try { webSocket?.close(1000, "destroy") } catch (_: Exception) {}
         webSocket = null
         state = State.IDLE
+        idleTimeoutFuture?.cancel(false)
+        scheduler.shutdown()
+        try { scheduler.awaitTermination(2, TimeUnit.SECONDS) } catch (_: Exception) {}
         executor.shutdown()
         try { executor.awaitTermination(3, TimeUnit.SECONDS) } catch (_: Exception) {}
         httpClient.dispatcher.executorService.shutdown()
