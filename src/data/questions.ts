@@ -42,10 +42,10 @@ export const questions: Question[] = [
     orderIndex: 0,
     questionText: '你今天更像哪种状态？',
     options: [
-      { label: 'A', emoji: '🌅', optionText: '刚刚苏醒', subText: '想慢慢进入状态', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
-      { label: 'B', emoji: '🔥', optionText: '准备狠狠干', subText: '今天想要快速推进', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
-      { label: 'C', emoji: '😌', optionText: '慢慢来', subText: '有自己的节奏', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
-      { label: 'D', emoji: '🚀', optionText: '直接开冲', subText: '先做了再说', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D3', weight: 3 }] }
+      { label: 'A', emoji: '🌅', optionText: '刚刚苏醒', subText: '需要预热', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'B', emoji: '🔥', optionText: '准备狠狠干', subText: '火力全开', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
+      { label: 'C', emoji: '😌', optionText: '慢慢来', subText: '顺应节奏', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '🚀', optionText: '直接开冲', subText: '毫不犹豫', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D3', weight: 3 }] }
     ]
   },
   {
@@ -53,10 +53,10 @@ export const questions: Question[] = [
     orderIndex: 1,
     questionText: '此刻你最想要哪种味道？',
     options: [
-      { label: 'A', emoji: '🍊', optionText: '清爽果香', subText: '像刚切开的橙子', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D4', weight: 3 }] },
-      { label: 'B', emoji: '🍫', optionText: '浓郁可可', subText: '微苦但很有层次', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 1 }] },
-      { label: 'C', emoji: '🌾', optionText: '温暖谷物', subText: '像太阳晒过的麦子', weights: [{ drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
-      { label: 'D', emoji: '🍯', optionText: '焦糖甜感', subText: '今天需要一点安慰', weights: [{ drinkId: 'D3', weight: 2 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
+      { label: 'A', emoji: '🍊', optionText: '清爽果香', subText: '鲜橙四溢', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D4', weight: 3 }] },
+      { label: 'B', emoji: '🍫', optionText: '浓郁可可', subText: '回甘微苦', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 1 }] },
+      { label: 'C', emoji: '🌾', optionText: '温暖谷物', subText: '麦浪翻涌', weights: [{ drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '🍯', optionText: '焦糖甜感', subText: '甜蜜治愈', weights: [{ drinkId: 'D3', weight: 2 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
     ]
   },
   {
@@ -64,10 +64,10 @@ export const questions: Question[] = [
     orderIndex: 2,
     questionText: '如果面前有两条路，你会？',
     options: [
-      { label: 'A', emoji: '🏃', optionText: '冲进雾里', subText: '看不清才刺激', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }] },
-      { label: 'B', emoji: '🗺️', optionText: '先看地图', subText: '研究清楚再出发', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
-      { label: 'C', emoji: '👣', optionText: '边走边看', subText: '先踏出一步', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 2 }] },
-      { label: 'D', emoji: '⏳', optionText: '等雾散', subText: '时机到了再动', weights: [{ drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 2 }] }
+      { label: 'A', emoji: '🏃', optionText: '冲进雾里', subText: '热爱冒险', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D2', weight: 1 }, { drinkId: 'D3', weight: 3 }] },
+      { label: 'B', emoji: '🗺️', optionText: '先看地图', subText: '规划路线', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'C', emoji: '👣', optionText: '边走边看', subText: '随性漫步', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 2 }] },
+      { label: 'D', emoji: '⏳', optionText: '等雾散', subText: '静候风停', weights: [{ drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 2 }] }
     ]
   },
   {
@@ -75,10 +75,10 @@ export const questions: Question[] = [
     orderIndex: 3,
     questionText: '大风刮来，你只留一样东西？',
     options: [
-      { label: 'A', emoji: '🔥', optionText: '火把', subText: '自己的光最重要', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
-      { label: 'B', emoji: '🧭', optionText: '罗盘', subText: '方向比速度重要', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }] },
-      { label: 'C', emoji: '📖', optionText: '日记', subText: '先沉淀再出发', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
-      { label: 'D', emoji: '☕', optionText: '咖啡', subText: '先补充一点能量', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
+      { label: 'A', emoji: '🔥', optionText: '火把', subText: '自带光芒', weights: [{ drinkId: 'D1', weight: 1 }, { drinkId: 'D3', weight: 3 }, { drinkId: 'D4', weight: 1 }] },
+      { label: 'B', emoji: '🧭', optionText: '罗盘', subText: '认准方向', weights: [{ drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 2 }, { drinkId: 'D5', weight: 2 }] },
+      { label: 'C', emoji: '📖', optionText: '日记', subText: '沉淀感悟', weights: [{ drinkId: 'D4', weight: 1 }, { drinkId: 'D5', weight: 3 }, { drinkId: 'D6', weight: 1 }] },
+      { label: 'D', emoji: '☕', optionText: '咖啡', subText: '充电续命', weights: [{ drinkId: 'D2', weight: 1 }, { drinkId: 'D5', weight: 1 }, { drinkId: 'D6', weight: 3 }] }
     ]
   },
   {
@@ -86,10 +86,10 @@ export const questions: Question[] = [
     orderIndex: 4,
     questionText: '浪、险、成，哪个字在敲你的心？',
     options: [
-      { label: 'A', emoji: '🌊', optionText: '浪', subText: '世界很大，我想去看看', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }] },
-      { label: 'B', emoji: '⛰️', optionText: '险', subText: '站在崖边，也不想退', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 2 }] },
-      { label: 'C', emoji: '🏆', optionText: '成', subText: '已经看到终点轮廓', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 3 }] },
-      { label: 'D', emoji: '🎲', optionText: '都在变', subText: '三个字我都想要', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 1 }] }
+      { label: 'A', emoji: '🌊', optionText: '浪', subText: '渴望远方', weights: [{ drinkId: 'D1', weight: 3 }, { drinkId: 'D2', weight: 1 }] },
+      { label: 'B', emoji: '⛰️', optionText: '险', subText: '迎难而上', weights: [{ drinkId: 'D2', weight: 3 }, { drinkId: 'D3', weight: 2 }] },
+      { label: 'C', emoji: '🏆', optionText: '成', subText: '胜券在握', weights: [{ drinkId: 'D5', weight: 2 }, { drinkId: 'D6', weight: 3 }] },
+      { label: 'D', emoji: '🎲', optionText: '都在变', subText: '每样都不放过', weights: [{ drinkId: 'D1', weight: 2 }, { drinkId: 'D2', weight: 2 }, { drinkId: 'D4', weight: 1 }] }
     ]
   }
 ]
