@@ -23,6 +23,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Restore debug keystore
+        run: |
+          mkdir -p /tmp/android-keystore
+          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > /tmp/android-keystore/debug.keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
